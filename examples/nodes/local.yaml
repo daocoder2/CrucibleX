@@ -1,0 +1,8 @@
+nodes:
+  - name: local-cpu
+    host: 127.0.0.1
+    role: candidate
+    allowed_tasks: [accuracy, run]
+    devices:
+      - id: 0
+        backend: cpu

@@ -1,0 +1,26 @@
+cases:
+  - id: 0
+    operator:
+      name: torch.abs
+      version: null
+      backward: false
+    invocation:
+      api: torch.abs
+      api_type: function
+      executor: function
+    oracle:
+      comparison: allclose
+      reference_executor: function
+      tolerance:
+        atol: 1.0e-6
+        rtol: 1.0e-6
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dim_count: [2]
+          dim_values: [4]
+        value_range:
+          valid: [[-1, 1]]
