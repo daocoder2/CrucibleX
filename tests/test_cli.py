@@ -2060,7 +2060,11 @@ def test_driver_input_materializer_reuses_case_inputs(tmp_path):
     assert first.artifacts[0].metadata == {
         "role": "input",
         "scope": "case",
-        "sources": [{"parameter": "input", "source": "value_range"}],
+        "input_schema_version": 1,
+        "case_fingerprint": first.artifacts[0].metadata["case_fingerprint"],
+        "generator": "default",
+        "seed": 0,
+        "sources": [{"parameter": "input", "source": "value_range", "spec_fingerprint": first.artifacts[0].metadata["sources"][0]["spec_fingerprint"]}],
     }
     assert json.loads(first.artifacts[0].path.read_text(encoding="utf-8"))[0]["shape"] == [4]
 
@@ -3048,6 +3052,41 @@ def test_fuzz_task_marks_fuzz_case_in_results(tmp_path):
     assert "source_case_id: 21" in report_text
 
 
+def test_run_strict_version_policy_rejects_worker_mismatch(tmp_path, monkeypatch):
+    from cruciblex import cli as cli_module
+
+    discovery = {
+        "runtime_probes": {
+            "driver": {"cruciblex": {"pipeline_sha256": "driver"}},
+            "workers": [{"probe": {"cruciblex": {"pipeline_sha256": "worker"}}}],
+        },
+        "node_templates": [],
+    }
+    monkeypatch.setattr(cli_module, "discover_runtime_resources", lambda ray_address=None: discovery)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--case",
+            "examples/cases/numpy.mean.yaml",
+            "--nodes",
+            "examples/nodes/local.yaml",
+            "--scheduler",
+            "local",
+            "--version-policy",
+            "strict",
+            "--output",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "pipeline fingerprints do not match" in result.output
+    assert (tmp_path / "driver" / "resource_snapshot.json").exists()
+    assert not (tmp_path / "manifest.json").exists()
+
+
 def test_markdown_report_includes_failure_clusters(tmp_path):
     from cruciblex.report import MarkdownReportWriter
 
@@ -3098,6 +3137,9 @@ def test_markdown_report_includes_failure_clusters(tmp_path):
 
     assert "## Failure Clusters" in content
     assert "## Hardware Evidence" in content
+    assert "input_schema_version: 1" in content
+    assert "runtime_compatibility: unavailable" in content
+    assert "version_policy: warn" in content
     assert "count: 1" in content
     assert "expected invalid case executed successfully" in content
 
@@ -3117,6 +3159,7 @@ def test_result_store_writes_jsonl_summary_and_manifest(tmp_path):
     assert loaded.run_id == manifest.run_id
     assert loaded.scheduler == SchedulerKind.RAY
     assert loaded.manifest_schema_version == 1
+    assert loaded.input_schema_version == 1
     assert rows[0]["result_schema_version"] == 1
     assert rows[0]["status"] == "passed"
     assert csv_rows[0]["result_schema_version"] == "1"

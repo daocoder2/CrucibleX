@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 
 from cruciblex.domain.plan import ExecutionPlan
 from cruciblex.domain.result import ArtifactRef
 from cruciblex.runtime.pipeline import ExecutionPipeline
 from cruciblex.storage.artifacts import ArtifactStore
+
+
+def _fingerprint(value: object) -> str:
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _input_sources(plan: ExecutionPlan) -> list[dict[str, object]]:
@@ -19,7 +26,11 @@ def _input_sources(plan: ExecutionPlan) -> list[dict[str, object]]:
             source = "value_range"
         else:
             source = "default"
-        sources.append({"parameter": parameter.name, "source": source})
+        sources.append({
+            "parameter": parameter.name,
+            "source": source,
+            "spec_fingerprint": _fingerprint(parameter.model_dump(mode="json")),
+        })
     return sources
 
 
@@ -49,7 +60,15 @@ class DriverInputMaterializer:
             name="inputs",
             path=path,
             kind="inputs",
-            metadata={"role": "input", "scope": "case", "sources": _input_sources(plan)},
+            metadata={
+                "role": "input",
+                "scope": "case",
+                "input_schema_version": 1,
+                "case_fingerprint": _fingerprint(plan.case.model_dump(mode="json")),
+                "generator": plan.case.generator,
+                "seed": plan.case.generation.seed,
+                "sources": _input_sources(plan),
+            },
         )
         bundle = InputBundle(inputs=inputs, artifacts=[artifact])
         self._cache[key] = bundle

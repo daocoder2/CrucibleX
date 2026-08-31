@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
 import platform
@@ -8,6 +9,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from cruciblex import __version__
 from cruciblex.domain.enums import BackendKind, TaskKind
 from cruciblex.runtime.scheduler.placement import (
     RayClusterSnapshot,
@@ -131,10 +133,19 @@ def _runtime_probe() -> dict[str, Any]:
         "executable": sys.executable,
         "env": _selected_env(),
         "packages": {},
+        "cruciblex": {
+            "version": __version__,
+            "pipeline_sha256": _pipeline_sha256(),
+        },
     }
     probe["packages"]["torch"] = _torch_probe()
     probe["packages"]["torch_npu"] = _module_probe("torch_npu")
     return probe
+
+
+def _pipeline_sha256() -> str:
+    path = Path(__file__).with_name("pipeline.py")
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _worker_runtime_probes(runtime: Any, snapshot: RayClusterSnapshot) -> list[dict[str, Any]]:

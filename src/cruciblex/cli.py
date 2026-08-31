@@ -44,6 +44,7 @@ from cruciblex.report import (
     write_performance_gate,
 )
 from cruciblex.report.standalone_reduction import reduce_case_file
+from cruciblex.runtime.compatibility import evaluate_runtime_compatibility
 from cruciblex.runtime.discovery import discover_runtime_resources, write_discovery_files
 from cruciblex.runtime.logging import bind_event, configure_run_logging, get_logger
 from cruciblex.runtime.planner import ExecutionPlanner
@@ -1224,6 +1225,7 @@ def run(
     plan_id: Annotated[list[str] | None, typer.Option("--plan-id")] = None,
     resume_from: Annotated[Path | None, typer.Option("--resume-from")] = None,
     retry_failed: Annotated[bool, typer.Option("--retry-failed")] = False,
+    version_policy: Annotated[str, typer.Option("--version-policy")] = "warn",
 ) -> None:
     """Build execution plans and run them with the selected scheduler."""
     output = output.resolve()
@@ -1245,6 +1247,8 @@ def run(
             plugins=len(plugins),
         )
     )
+    if version_policy not in {"warn", "strict"}:
+        raise typer.BadParameter("version policy must be warn or strict")
     context = RunContext(
         case_path=case,
         node_path=nodes,
@@ -1254,10 +1258,20 @@ def run(
         ray_address=ray_address,
         plugin_paths=plugins,
     )
-    discovery_artifacts = write_discovery_files(
-        output / "driver",
-        discover_runtime_resources(ray_address=ray_address if scheduler == SchedulerKind.RAY else None),
-    )
+    discovery = discover_runtime_resources(ray_address=ray_address if scheduler == SchedulerKind.RAY else None)
+    compatibility = evaluate_runtime_compatibility(discovery)
+    discovery["version_compatibility"] = compatibility
+    discovery_artifacts = write_discovery_files(output / "driver", discovery)
+    context = context.model_copy(update={
+        "metadata": {
+            "input_schema_version": 1,
+            "runtime_compatibility": compatibility,
+            "version_policy": version_policy,
+            "discovery_snapshot": str(discovery_artifacts["snapshot"]),
+        }
+    })
+    if version_policy == "strict" and compatibility["status"] == "mismatched":
+        raise typer.BadParameter("driver and worker pipeline fingerprints do not match")
     job = load_job_from_context(context)
     plans = ExecutionPlanner().build(job)
     resume_state = None

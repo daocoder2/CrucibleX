@@ -47,6 +47,9 @@ class MarkdownReportWriter:
         failed = summary.get("failed", 0)
         fuzz_cases = postprocess.get("fuzz_cases", [])
         failure_clusters = postprocess.get("failure_clusters", [])
+        compatibility = manifest.metadata.get("runtime_compatibility", {})
+        compatibility_status = compatibility.get("status", "unavailable") if isinstance(compatibility, dict) else "unavailable"
+        version_policy = manifest.metadata.get("version_policy", "warn")
         lines: list[str] = [
             "# CrucibleX Report",
             "",
@@ -62,6 +65,9 @@ class MarkdownReportWriter:
             f"- skipped_count: {manifest.skipped_count}",
             f"- results_path: {results_path}",
             f"- summary_path: {summary_path}",
+            f"- input_schema_version: {manifest.input_schema_version}",
+            f"- runtime_compatibility: {compatibility_status}",
+            f"- version_policy: {version_policy}",
             "",
             "## Summary",
             f"- total: {total}",

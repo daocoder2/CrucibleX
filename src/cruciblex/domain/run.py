@@ -52,6 +52,7 @@ class RunContext(BaseModel):
 
 class RunManifest(BaseModel):
     manifest_schema_version: Literal[1] = 1
+    input_schema_version: Literal[1] = 1
     run_id: str = Field(default_factory=new_run_id)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     case_path: Path
