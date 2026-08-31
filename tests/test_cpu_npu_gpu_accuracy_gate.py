@@ -68,6 +68,19 @@ def test_quantized_gate_records_all_required_metrics_and_small_value_count(tmp_p
     assert {"ae", "mare", "mere", "rmse", "small_value_error_count"} <= set(gate.metrics["npu_metrics"])
 
 
+def test_small_value_error_count_uses_top_level_max_error_count(tmp_path):
+    policy = {"category": "floating", "small_value_threshold": 0.1, "max_error_count": 0}
+    cpu = _result(tmp_path, BackendKind.CPU, [0.01, 1.0], "cpu", policy)
+    gpu = _result(tmp_path, BackendKind.GPU, [0.021, 1.0], "gpu", policy)
+    npu = _result(tmp_path, BackendKind.NPU, [0.021, 1.0], "npu", policy)
+
+    results = CrossDeviceComparator(tmp_path).compare([cpu, gpu, npu])
+    gate = next(result for result in results if result.metrics["stage"] == "cpu_npu_gpu_accuracy_gate")
+
+    assert gate.status == ResultStatus.FAILED
+    assert "small_value_error_count:threshold" in gate.metrics["failed_metrics"]
+
+
 def test_integer_gate_requires_bitwise_match(tmp_path):
     policy = {"category": "integer"}
     cpu = _result(tmp_path, BackendKind.CPU, [1, 2], "cpu", policy)

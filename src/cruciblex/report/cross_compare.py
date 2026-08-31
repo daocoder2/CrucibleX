@@ -138,6 +138,8 @@ class CrossDeviceComparator:
     def _accuracy_gate(self, allclose_passed: bool, gpu: dict[str, float | bool | int], npu: dict[str, float | bool | int], policy: object) -> tuple[bool, list[str]]:
         config = policy if isinstance(policy, dict) else {}
         thresholds = config.get("thresholds", {}) if isinstance(config.get("thresholds", {}), dict) else {}
+        if "max_error_count" in config and "small_value_error_count" not in thresholds:
+            thresholds = {**thresholds, "small_value_error_count": config["max_error_count"]}
         failed = [] if allclose_passed else ["allclose"]
         for name, npu_value in npu.items():
             gpu_value = gpu.get(name)
