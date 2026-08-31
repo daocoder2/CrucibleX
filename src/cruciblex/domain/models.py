@@ -1,4 +1,5 @@
 from cruciblex.domain.case import (
+    AccuracyPolicySpec,
     CaseSpec,
     InvocationBindingSpec,
     InvocationSpec,
@@ -22,6 +23,7 @@ from cruciblex.domain.result import ArtifactPayload, ArtifactRef, ExecutionResul
 from cruciblex.domain.run import RunContext, RunManifest
 
 __all__ = [
+    "AccuracyPolicySpec",
     "ArtifactPayload",
     "ArtifactPolicy",
     "ArtifactRef",

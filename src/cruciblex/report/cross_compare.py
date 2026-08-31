@@ -21,10 +21,11 @@ class CrossDeviceComparator:
 
     def compare(self, results: list[ExecutionResult]) -> list[ExecutionResult]:
         comparisons: list[ExecutionResult] = []
-        grouped: dict[tuple[int, str], list[ExecutionResult]] = defaultdict(list)
+        grouped: dict[tuple[int, str, str], list[ExecutionResult]] = defaultdict(list)
         for result in results:
             if result.status == ResultStatus.PASSED and self._needs_compare(result.task):
-                grouped[(result.case_id, result.task.value)].append(result)
+                fingerprint = self._input_fingerprint(result)
+                grouped[(result.case_id, result.task.value, fingerprint)].append(result)
 
         for group in grouped.values():
             reference = self._cpu_reference_result(group)
@@ -119,10 +120,19 @@ class CrossDeviceComparator:
         actual_arr = np.asarray(actual, dtype=np.float64)
         diff = np.abs(expected_arr - actual_arr)
         if category in {"non_computational", "integer"}:
-            return {"bitwise_match": bool(np.array_equal(np.asarray(expected), np.asarray(actual)))}
+            expected_raw = np.asarray(expected)
+            actual_raw = np.asarray(actual)
+            return {
+                "bitwise_match": bool(
+                    expected_raw.shape == actual_raw.shape
+                    and expected_raw.dtype == actual_raw.dtype
+                    and expected_raw.tobytes() == actual_raw.tobytes()
+                )
+            }
         denominator = np.maximum(np.abs(expected_arr), float(config.get("relative_epsilon", 1e-12)))
         relative = diff / denominator
         metrics: dict[str, float | bool | int] = {
+            "non_finite_count": int(np.count_nonzero(~np.isfinite(expected_arr) | ~np.isfinite(actual_arr))),
             "mare": float(relative.max()) if relative.size else 0.0,
             "mere": float(relative.mean()) if relative.size else 0.0,
             "rmse": float(np.sqrt(np.mean(np.square(diff)))) if diff.size else 0.0,
@@ -141,7 +151,13 @@ class CrossDeviceComparator:
         if "max_error_count" in config and "small_value_error_count" not in thresholds:
             thresholds = {**thresholds, "small_value_error_count": config["max_error_count"]}
         failed = [] if allclose_passed else ["allclose"]
+        if int(gpu.get("non_finite_count", 0)) > 0:
+            failed.append("gpu_non_finite")
+        if int(npu.get("non_finite_count", 0)) > 0:
+            failed.append("non_finite")
         for name, npu_value in npu.items():
+            if name == "non_finite_count":
+                continue
             gpu_value = gpu.get(name)
             if isinstance(npu_value, bool):
                 if not npu_value:
@@ -156,6 +172,10 @@ class CrossDeviceComparator:
 
     def _needs_compare(self, task: TaskKind) -> bool:
         return task in {TaskKind.ACCURACY, TaskKind.ACCURACY_LOAD, TaskKind.ACCURACY_DC}
+
+    def _input_fingerprint(self, result: ExecutionResult) -> str:
+        artifact = next((item for item in result.artifacts if item.kind == "inputs"), None)
+        return str(artifact.metadata.get("case_fingerprint", "")) if artifact else ""
 
     def _cpu_reference_result(self, results: list[ExecutionResult]) -> ExecutionResult | None:
         cpu_results = [result for result in results if result.backend == BackendKind.CPU]

@@ -162,6 +162,7 @@ def _oracle_payload(payload: dict[str, Any], *, reference_executor: str | None) 
         "reference_executor": reference_executor or oracle.get("reference_executor"),
         "expected_error": oracle.get("expected_error"),
         "tolerance": oracle.get("tolerance", {}),
+        "accuracy_policy": oracle.get("accuracy_policy", {}),
         "metadata": oracle.get("metadata", {}),
     }
 
