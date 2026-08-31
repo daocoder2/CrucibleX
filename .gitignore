@@ -1,9 +1,23 @@
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
+.mypy_cache/
 .ruff_cache/
-cx_output/
-dist/
+.coverage
+htmlcov/
+.dist/
 build/
+dist/
 .venv/
 venv/
+*.log
+cruciblex.log
+
+# CrucibleX run artifacts
+cx_output/
+cx_output_resume/
+out/
+
+# Local private deployment notes
+docker/private-notes.md
