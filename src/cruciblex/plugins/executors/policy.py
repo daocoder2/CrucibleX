@@ -16,10 +16,15 @@ class DefaultDevicePolicy(DevicePolicy):
     def torch_device(self, context: DeviceContext) -> str | None:
         if context.backend == BackendKind.CPU:
             return "cpu"
+        device_index = 0 if context.env.get("CX_DEVICE_INDEX_MODE") == "actor_local" else context.device.id
         if context.backend == BackendKind.GPU:
-            return f"cuda:{context.device.id}"
+            return f"cuda:{device_index}"
         if context.backend == BackendKind.NPU:
-            return f"npu:{context.device.id}"
+            return f"npu:{device_index}"
+        if context.backend == BackendKind.ACLNN:
+            return f"npu:{device_index}"
+        if context.backend == BackendKind.DCU:
+            return f"cuda:{device_index}"
         return None
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -11,7 +11,7 @@ from cruciblex.domain.enums import SchedulerKind, TaskKind
 
 
 def new_run_id() -> str:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     return f"run-{timestamp}-{uuid4().hex[:8]}"
 
 
@@ -22,6 +22,7 @@ class RunContext(BaseModel):
     tasks: list[TaskKind]
     scheduler: SchedulerKind
     output_root: Path
+    ray_address: str | None = None
     plugin_paths: list[Path] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -39,6 +40,7 @@ class RunContext(BaseModel):
             tasks=self.tasks,
             scheduler=self.scheduler,
             output_root=self.output_root,
+            ray_address=self.ray_address,
             plugin_paths=self.plugin_paths,
             metadata=self.metadata,
             cruciblex_version=cruciblex_version,
@@ -50,12 +52,13 @@ class RunContext(BaseModel):
 
 class RunManifest(BaseModel):
     run_id: str = Field(default_factory=new_run_id)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     case_path: Path
     node_path: Path
     tasks: list[TaskKind]
     scheduler: SchedulerKind
     output_root: Path
+    ray_address: str | None = None
     plugin_paths: list[Path] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
     cruciblex_version: str

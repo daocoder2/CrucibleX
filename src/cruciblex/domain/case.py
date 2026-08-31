@@ -52,6 +52,16 @@ class OracleSpec(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class GenerationSpec(BaseModel):
+    count: int = 1
+    invalid_count: int = 0
+    seed: int = 0
+    constraints: list[str] = Field(default_factory=list)
+    max_elements: int | None = None
+    max_bytes: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class CaseSpec(BaseModel):
     id: int
     operator: OperatorSpec
@@ -59,6 +69,7 @@ class CaseSpec(BaseModel):
     parameters: list[ParameterSpec] = Field(default_factory=list)
     oracle: OracleSpec = Field(default_factory=OracleSpec)
     generator: str = "default"
+    generation: GenerationSpec = Field(default_factory=GenerationSpec)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @property

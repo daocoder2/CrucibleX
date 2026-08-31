@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,28 @@ class ResultStore:
         path.write_text(content, encoding="utf-8")
         return path
 
+    def write_results_csv(self, results: list[ExecutionResult], name: str = "results.csv") -> Path:
+        path = self.ensure() / name
+        fieldnames = [
+            "plan_id",
+            "case_id",
+            "case_name",
+            "node_name",
+            "backend",
+            "device_id",
+            "task",
+            "status",
+            "error",
+            "metrics_json",
+            "artifact_count",
+        ]
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            for result in results:
+                writer.writerow(self._result_row(result))
+        return path
+
     def read_results_jsonl(self, name: str = "results.jsonl") -> list[ExecutionResult]:
         path = self.ensure() / name
         if not path.exists():
@@ -47,3 +70,18 @@ class ResultStore:
         path = self.ensure() / name
         path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
         return path
+
+    def _result_row(self, result: ExecutionResult) -> dict[str, str]:
+        return {
+            "plan_id": result.plan_id,
+            "case_id": str(result.case_id),
+            "case_name": result.case_name,
+            "node_name": result.node_name,
+            "backend": result.backend.value,
+            "device_id": str(result.device_id),
+            "task": result.task.value,
+            "status": result.status.value,
+            "error": result.error or "",
+            "metrics_json": json.dumps(result.metrics, ensure_ascii=False, sort_keys=True),
+            "artifact_count": str(len(result.artifacts)),
+        }

@@ -35,14 +35,22 @@ class ArtifactStore:
         return ArtifactPayload(name=name, kind=kind, data=data, metadata=metadata)
 
     def write_payload(self, plan: ExecutionPlan, payload: ArtifactPayload) -> ArtifactRef:
-        path = self.plan_root(plan) / f"{payload.name}.json"
-        self.write_json(path, payload.data)
+        path = self.plan_root(plan) / self._payload_filename(payload)
+        if payload.kind == "log" and isinstance(payload.data, str):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(payload.data, encoding="utf-8")
+        else:
+            self.write_json(path, payload.data)
         return ArtifactRef(
             name=payload.name,
             path=path,
             kind=payload.kind,
             metadata=payload.metadata,
         )
+
+    def _payload_filename(self, payload: ArtifactPayload) -> str:
+        suffix = "log" if payload.kind == "log" else "json"
+        return f"{payload.name}.{suffix}"
 
     def record_json(
         self,

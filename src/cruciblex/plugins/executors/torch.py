@@ -22,8 +22,9 @@ class TorchFunctionExecutor(BackendExecutor):
         torch = self._torch()
         target = self._resolve_api(torch, request.case.invocation.api)
         torch_inputs = [self._to_torch(torch, value, request) for value in request.inputs]
+        positional, keywords = request.call_arguments(torch_inputs)
         with torch.no_grad():
-            output = target(*torch_inputs)
+            output = target(*positional, **keywords)
         return self._to_numpy(output)
 
     def _torch(self):
@@ -43,6 +44,8 @@ class TorchFunctionExecutor(BackendExecutor):
 
     def _to_torch(self, torch, value: object, request: ExecutionRequest):
         if isinstance(value, np.ndarray):
+            if not value.flags.writeable:
+                value = np.array(value, copy=True)
             tensor = torch.from_numpy(value)
             device = self._device_policy.torch_device(request.context) if request.context is not None else None
             if device is None:

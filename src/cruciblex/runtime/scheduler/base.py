@@ -16,7 +16,15 @@ def scheduler_result(
     detail: str | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> ExecutionResult:
-    metrics = {"stage": "scheduler", "reason": reason, **(metadata or {})}
+    failure_kind = "skip" if status == ResultStatus.SKIPPED else "timeout" if status == ResultStatus.TIMEOUT else "error" if status == ResultStatus.ERROR else "scheduler"
+    metrics = {
+        "stage": "scheduler",
+        "reason": reason,
+        "failure_kind": failure_kind,
+        "failure_stage": reason,
+        "failure_message": detail or reason,
+        **(metadata or {}),
+    }
     return ExecutionResult(
         plan_id=plan.plan_id,
         case_id=plan.case.id,

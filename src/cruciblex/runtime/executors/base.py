@@ -18,6 +18,31 @@ class ExecutionRequest:
     context: DeviceContext | None = None
     role: ExecutionRole = ExecutionRole.CANDIDATE
 
+    def call_arguments(self, values: list[object]) -> tuple[list[object], dict[str, object]]:
+        binding = self.case.invocation.metadata.get("binding", {})
+        if not isinstance(binding, dict) or binding.get("mode", "positional") == "positional":
+            return [value for index, value in enumerate(values) if not self._omitted(index)], {}
+        names = binding.get("names") or [parameter.name for parameter in self.case.parameters]
+        if len(names) < len(values):
+            raise ValueError("binding names must cover every input")
+        positional_indexes = set(binding.get("positional", [])) if binding.get("mode") == "mixed" else set()
+        if any(index < 0 or index >= len(values) for index in positional_indexes):
+            raise ValueError("mixed positional index is out of range")
+        if positional_indexes and positional_indexes != set(range(max(positional_indexes) + 1)):
+            raise ValueError("mixed positional indexes must form a contiguous prefix")
+        if any(self.case.parameters[index].metadata.get("keyword_only") for index in positional_indexes):
+            raise ValueError("keyword-only parameters cannot be positional")
+        positional = [value for index, value in enumerate(values) if index in positional_indexes and not self._omitted(index)]
+        kwargs = {str(name): values[index] for index, name in enumerate(names) if index < len(values) and index not in positional_indexes and not self._omitted(index)}
+        return positional, kwargs
+
+    def _omitted(self, index: int) -> bool:
+        binding = self.case.invocation.metadata.get("binding", {})
+        omitted = binding.get("omit", []) if isinstance(binding, dict) else []
+        if index >= len(self.case.parameters):
+            return False
+        return self.case.parameters[index].name in omitted or index in omitted
+
 
 class ExecutionNotSupportedError(RuntimeError):
     pass

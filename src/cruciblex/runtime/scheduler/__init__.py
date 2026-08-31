@@ -8,7 +8,6 @@ from cruciblex.runtime.scheduler.placement import (
     decide_ray_placement,
     discover_ray_cluster,
 )
-from cruciblex.runtime.scheduler.ray import RayScheduler
 
 __all__ = [
     "LocalScheduler",
@@ -20,4 +19,13 @@ __all__ = [
     "Scheduler",
     "decide_ray_placement",
     "discover_ray_cluster",
+    "ray_init_kwargs",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"RayScheduler", "ray_init_kwargs"}:
+        from cruciblex.runtime.scheduler.ray import RayScheduler, ray_init_kwargs
+
+        return {"RayScheduler": RayScheduler, "ray_init_kwargs": ray_init_kwargs}[name]
+    raise AttributeError(name)

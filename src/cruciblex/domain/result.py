@@ -31,8 +31,8 @@ class ExecutionResult(BaseModel):
     device_id: int
     task: TaskKind
     status: ResultStatus
-    candidate_role: ExecutionRole = ExecutionRole.CANDIDATE
-    reference_role: ExecutionRole = ExecutionRole.REFERENCE
+    candidate_role: ExecutionRole | None = None
+    reference_role: ExecutionRole | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
     artifacts: list[ArtifactRef] = Field(default_factory=list)
     artifact_payloads: list[ArtifactPayload] = Field(default_factory=list, exclude=True)

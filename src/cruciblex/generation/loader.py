@@ -18,6 +18,7 @@ from cruciblex.domain.enums import ParameterKind, SchedulerKind, TaskKind
 from cruciblex.domain.node import NodeSpec
 from cruciblex.domain.plan import ArtifactPolicy, JobSpec
 from cruciblex.domain.run import RunContext
+from cruciblex.generation.expand import expand_cases, persist_generated_cases
 
 
 def load_case(path: str | Path) -> CaseSpec:
@@ -48,12 +49,15 @@ def load_job(
     scheduler: SchedulerKind = SchedulerKind.RAY,
     output_path: str | Path = "cx_output",
 ) -> JobSpec:
+    output_root = Path(output_path).resolve()
+    cases = expand_cases(load_cases(case_path))
+    persist_generated_cases(cases, output_root)
     return JobSpec(
-        cases=load_cases(case_path),
+        cases=cases,
         nodes=load_nodes(node_path),
         tasks=tasks or [TaskKind.ACCURACY],
         scheduler=scheduler,
-        artifacts=ArtifactPolicy(output_root=Path(output_path).resolve()),
+        artifacts=ArtifactPolicy(output_root=output_root),
     )
 
 
@@ -92,6 +96,7 @@ def _parse_case(data: dict[str, Any]) -> CaseSpec:
         parameters=[_parse_parameter(item) for item in data.get("parameters", [])],
         oracle=OracleSpec.model_validate(_require_mapping(data.get("oracle", {}), "oracle")),
         generator=data.get("generator", "default"),
+        generation=data.get("generation", {}),
         metadata=data.get("metadata", {}),
     )
 

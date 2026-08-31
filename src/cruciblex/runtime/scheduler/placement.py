@@ -42,8 +42,11 @@ class RayNodeInfo:
 
     @property
     def node_resource_key(self) -> str | None:
-        key = f"{_NODE_RESOURCE_PREFIX}{self.node_id}"
-        return key if key in self.resources else None
+        for value in (self.node_id, self.address, self.hostname):
+            key = f"{_NODE_RESOURCE_PREFIX}{value}"
+            if key in self.resources:
+                return key
+        return None
 
 
 @dataclass(frozen=True, slots=True)

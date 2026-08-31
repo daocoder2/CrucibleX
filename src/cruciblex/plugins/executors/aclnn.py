@@ -4,6 +4,7 @@ import importlib
 
 import numpy as np
 
+from cruciblex.plugins.executors.aclnn_bridge import ACLNN_ADAPTER_REGISTRY
 from cruciblex.runtime.executors.base import (
     EXECUTOR_REGISTRY,
     BackendExecutor,
@@ -14,8 +15,11 @@ from cruciblex.runtime.executors.base import (
 
 class AclnnFunctionExecutor(BackendExecutor):
     def execute(self, request: ExecutionRequest) -> object:
+        if ACLNN_ADAPTER_REGISTRY.supports(request.case.invocation.api_type):
+            return ACLNN_ADAPTER_REGISTRY.resolve(request.case.invocation.api_type).execute(request)
         target = self._resolve_api(request.case.invocation.api)
-        return self._to_numpy(target(*request.inputs))
+        positional, keywords = request.call_arguments(request.inputs)
+        return self._to_numpy(target(*positional, **keywords))
 
     def _resolve_api(self, api: str):
         if "." not in api:

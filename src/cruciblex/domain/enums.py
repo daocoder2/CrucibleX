@@ -7,6 +7,7 @@ class BackendKind(StrEnum):
     CPU = "cpu"
     GPU = "gpu"
     NPU = "npu"
+    DCU = "dcu"
     ACLNN = "aclnn"
     DIST = "dist"
 
