@@ -173,3 +173,42 @@ def test_dtype_aware_numeric_boundary_policies():
     assert integer_values.tolist() == [-128, 127, -128, 127]
     assert float_values[0] < 0 < float_values[2]
     assert float_values[1] == 0
+
+
+
+def test_matrix_profiles_are_deterministic_and_preserve_declared_structure():
+    generator = DefaultInputGenerator()
+    well_conditioned = _parameter("well", [6, 4]).model_copy(update={
+        "metadata": {"value_policy": {"kind": "matrix_profile", "profile": "well_conditioned", "condition_number": 3.0}, "value_policy_seed": 19},
+    })
+    rank_deficient = _parameter("rank_deficient", [6, 4]).model_copy(update={
+        "metadata": {"value_policy": {"kind": "matrix_profile", "profile": "rank_deficient", "rank": 2}, "value_policy_seed": 19},
+    })
+
+    first = generator._generate_parameter(well_conditioned)
+    second = generator._generate_parameter(well_conditioned)
+    deficient = generator._generate_parameter(rank_deficient)
+
+    assert np.array_equal(first, second)
+    assert np.linalg.cond(first) <= 3.01
+    assert np.linalg.matrix_rank(deficient) <= 2
+
+
+def test_matrix_profile_rejects_non_matrix_or_invalid_rank():
+    generator = DefaultInputGenerator()
+    vector = _parameter("vector", [4]).model_copy(update={
+        "metadata": {"value_policy": {"kind": "matrix_profile", "profile": "well_conditioned"}},
+    })
+    invalid_rank = _parameter("invalid_rank", [4, 4]).model_copy(update={
+        "metadata": {"value_policy": {"kind": "matrix_profile", "profile": "rank_deficient", "rank": 4}},
+    })
+    invalid_condition = _parameter("invalid_condition", [4, 4]).model_copy(update={
+        "metadata": {"value_policy": {"kind": "matrix_profile", "profile": "well_conditioned", "condition_number": 0.5}},
+    })
+
+    with pytest.raises(ValueError, match="rank-2"):
+        generator._generate_parameter(vector)
+    with pytest.raises(ValueError, match="rank must satisfy"):
+        generator._generate_parameter(invalid_rank)
+    with pytest.raises(ValueError, match="condition_number"):
+        generator._generate_parameter(invalid_condition)

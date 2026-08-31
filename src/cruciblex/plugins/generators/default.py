@@ -136,6 +136,9 @@ class DefaultInputGenerator(InputGenerator):
         if policy_value is not None:
             data = np.full(shape or (), policy_value, dtype=dtype)
             return data if shape else data[()]
+        matrix = self._matrix_profile(parameter, shape, dtype)
+        if matrix is not None:
+            return matrix
         total = int(np.prod(shape)) if shape else 1
         policy_values = self._boundary_values(parameter, dtype, total)
         if policy_values is not None:
@@ -143,6 +146,37 @@ class DefaultInputGenerator(InputGenerator):
         value_range = self._tensor_range(parameter)
         data = self._distribution_values(parameter, value_range, total, dtype)
         return data.reshape(shape) if shape else data[0]
+
+    def _matrix_profile(self, parameter: ParameterSpec, shape: list[int], dtype):
+        policy = parameter.metadata.get("value_policy")
+        if not isinstance(policy, dict) or policy.get("kind") != "matrix_profile":
+            return None
+        if len(shape) != 2:
+            raise ValueError("matrix_profile requires a rank-2 tensor shape")
+        if not np.issubdtype(dtype, np.floating):
+            raise ValueError("matrix_profile requires a floating dtype")
+        profile = str(policy.get("profile", "well_conditioned"))
+        rows, columns = shape
+        rank_limit = min(rows, columns)
+        if rank_limit == 0:
+            return np.empty(shape, dtype=dtype)
+        rng = np.random.default_rng(int(parameter.metadata.get("value_policy_seed", 0)))
+        if profile == "well_conditioned":
+            left, _ = np.linalg.qr(rng.normal(size=(rows, rank_limit)))
+            right, _ = np.linalg.qr(rng.normal(size=(columns, rank_limit)))
+            condition = float(policy.get("condition_number", 4.0))
+            if condition < 1.0:
+                raise ValueError("well_conditioned matrix_profile condition_number must be at least 1")
+            singular = np.linspace(1.0, 1.0 / condition, rank_limit)
+            return ((left * singular) @ right.T).astype(dtype)
+        if profile == "rank_deficient":
+            rank = int(policy.get("rank", max(1, rank_limit - 1)))
+            if rank < 0 or rank >= rank_limit:
+                raise ValueError("rank_deficient matrix_profile rank must satisfy 0 <= rank < min(shape)")
+            if rank == 0:
+                return np.zeros(shape, dtype=dtype)
+            return (rng.normal(size=(rows, rank)) @ rng.normal(size=(rank, columns))).astype(dtype)
+        raise ValueError(f"unknown matrix_profile: {profile}")
 
     def _generate_scalar(self, parameter: ParameterSpec):
         dtype = self._dtype(parameter)
