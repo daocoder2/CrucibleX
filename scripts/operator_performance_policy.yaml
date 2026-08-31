@@ -1,0 +1,16 @@
+required:
+  backend: [cpu, gpu]
+  task: [performance_device, memory_device]
+required_combinations:
+  - {operator: torch.relu, backend: cpu, task: performance_device}
+  - {operator: torch.relu, backend: gpu, task: performance_device}
+  - {operator: torch.relu, backend: cpu, task: memory_device}
+  - {operator: torch.relu, backend: gpu, task: memory_device}
+  - {operator: torch.softmax, backend: cpu, task: performance_device}
+  - {operator: torch.softmax, backend: gpu, task: performance_device}
+  - {operator: torch.softmax, backend: cpu, task: memory_device}
+  - {operator: torch.softmax, backend: gpu, task: memory_device}
+  - {operator: torch.matmul, backend: cpu, task: performance_device}
+  - {operator: torch.matmul, backend: gpu, task: performance_device}
+  - {operator: torch.matmul, backend: cpu, task: memory_device}
+  - {operator: torch.matmul, backend: gpu, task: memory_device}

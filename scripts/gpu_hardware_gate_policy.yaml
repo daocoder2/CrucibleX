@@ -1,0 +1,22 @@
+required:
+  backend: [cpu, gpu]
+  task: [accuracy, performance_device, memory_device]
+required_combinations:
+  - operator: torch.add
+    backend: cpu
+    task: accuracy
+  - operator: torch.add
+    backend: gpu
+    task: accuracy
+  - operator: torch.add
+    backend: cpu
+    task: performance_device
+  - operator: torch.add
+    backend: gpu
+    task: performance_device
+  - operator: torch.add
+    backend: cpu
+    task: memory_device
+  - operator: torch.add
+    backend: gpu
+    task: memory_device

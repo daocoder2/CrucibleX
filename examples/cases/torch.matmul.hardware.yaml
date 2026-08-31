@@ -1,0 +1,25 @@
+# Torch matmul hardware sample for matrix shape and broadcasting coverage.
+cases:
+  - id: 203
+    operator: {name: torch.matmul}
+    invocation: {api: torch.matmul, api_type: function, executor: torch}
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-5, rtol: 1.0e-5}
+    generator: default
+    generation: {count: 1, seed: 203}
+    metadata:
+      tags: [hardware, matrix, torch]
+      benchmark_policy: {warmup: 10, repeat: 20, min_time_ms: 100, throughput_items_per_call: 8}
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 3]}
+        value_range: {valid: [[-1, 1]]}
+      - name: other
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [3, 4]}
+        value_range: {valid: [[-1, 1]]}

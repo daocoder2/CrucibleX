@@ -1,0 +1,9 @@
+metrics:
+  latency_p95_ms:
+    max_regression_percent: 15
+  throughput_items_per_s:
+    min_regression_percent: 15
+  hardware_memory_after_max_allocated_bytes:
+    max_regression_percent: 15
+profiler:
+  max_operator_regression_percent: 15

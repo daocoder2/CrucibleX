@@ -1,0 +1,10 @@
+required:
+  backend: [cpu, gpu]
+  task: [accuracy]
+required_combinations:
+  - {operator: torch.relu, backend: cpu, task: accuracy}
+  - {operator: torch.relu, backend: gpu, task: accuracy}
+  - {operator: torch.softmax, backend: cpu, task: accuracy}
+  - {operator: torch.softmax, backend: gpu, task: accuracy}
+  - {operator: torch.matmul, backend: cpu, task: accuracy}
+  - {operator: torch.matmul, backend: gpu, task: accuracy}

@@ -1,0 +1,19 @@
+operator:
+  name: temu.softmax
+  api: temu.softmax
+  api_type: backend
+config:
+  target: npu
+  case_name: softmax
+  layout: nchw
+inputs:
+  - name: input
+    dtype: float32
+    shape: [1, 3, 8, 8]
+oracle:
+  comparison: allclose
+  tolerance:
+    atol: 1.0e-4
+    rtol: 1.0e-4
+metadata:
+  source: synthetic temu fixture

@@ -1,0 +1,36 @@
+cases:
+  - id: 204
+    operator:
+      name: aclnn.sort
+      api: aclnnSort
+      api_type: aclnn
+      executor: aclnn
+    invocation:
+      api: aclnnSort
+      api_type: aclnn
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Sort
+          inputs:
+            - {name: input, kind: tensor}
+          attributes:
+            - {name: stable, kind: native_bool, value: false}
+            - {name: dim, kind: native_int, value: 1}
+            - {name: descending, kind: native_bool, value: false}
+          outputs:
+            - {name: values, kind: tensor, like: input, dtype: fp32, shape: [2, 4]}
+            - {name: indices, kind: tensor, like: input, dtype: int64, shape: [2, 4]}
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 4]}
+        values: [[3.0, 1.0, 4.0, 2.0], [8.0, 6.0, 7.0, 5.0]]
+    generation:
+      count: 1
+    oracle:
+      kind: reference
+      reference: torch.sort
+    metadata:
+      tags: [hardware, npu, aclnn, multi-output]

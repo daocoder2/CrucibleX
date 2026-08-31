@@ -108,9 +108,25 @@ Infrastructure-level unsupported execution remains `SKIPPED`; it is not treated 
 
 `ExecutionPlanner` now builds execution slots first and then combines cases with slots. That keeps the logic flatter, makes filtering explicit, and leaves room for future slot policies without deep nested loops.
 
+## Task Semantics
+
+Task meaning is a driver-level contract, not an executor detail. Every device backend may run the same task independently, but the post-processing stage decides how to interpret the results.
+
+| Task family | Execution shape | Driver post-process | Notes |
+| --- | --- | --- | --- |
+| `accuracy`, `accuracy_load`, `accuracy_dc` | Run candidate and reference plans independently, usually across different backend/device slots | Compare candidate output against the chosen reference backend | This is the only family that should emit cross-device comparison artifacts by default |
+| `performance_device`, `performance_device_pta`, `performance_e2e`, `performance_benchmark` | Run each backend/device independently | Aggregate latency, throughput, and benchmark summaries | No numerical compare unless a specific operator policy requires it |
+| `memory_device` | Run each backend/device independently | Aggregate memory allocation and reservation metrics | The output is a report, not a compare decision |
+| `run` | Run each backend/device independently | Persist outputs and status only | Suitable for smoke, integration, and capability checks |
+| `fuzz` | Run selected cases independently or by sampling policy | Cluster failures, retain repro artifacts, and summarize coverage | Compare is not the primary output |
+
+Backend selection is orthogonal to task family. CPU, GPU, NPU, DCU, ACLNN, and other future backends are all just independent execution targets. The scheduler fans them out, and the driver decides which post-process applies. CPU and GPU are the current required E2E validation targets; NPU, DCU, and ACLNN follow the same contract when matching resources are available. GPU maps to Ray `GPU`, NPU maps to custom `npu`, DCU maps to custom `dcu`, and ACLNN defaults to the same `npu` resource because it executes on Ascend/NPU hardware.
+
+`ResultPostProcessor` is the single driver-side entry point for result interpretation. It receives collected execution results after scheduler collection and may append derived results, such as accuracy comparison rows. It also writes the run-level `postprocess.json` summary for performance, memory, and comparison views. The CLI should not contain task-specific post-processing branches.
+
 ## Result Persistence
 
-`ResultStore` writes `results.jsonl` and `summary.json` at the run output root. The CLI emits the file paths after a run so local and Ray executions share the same persisted result contract.
+`ResultStore` writes `results.jsonl` and `summary.json` at the run output root. `ResultPostProcessor` writes `postprocess.json` beside them when driver-side post-processing runs. The CLI emits these file paths after a run so local and Ray executions share the same persisted result contract.
 
 Artifacts follow the long-term driver-owned persistence model. Local execution may materialize artifacts directly, but Ray workers return structured `ArtifactPayload` values and the driver converts them into final `ArtifactRef` files under the absolute run output root during result collection. This keeps multi-node execution from depending on each worker local filesystem layout.
 ## Run Context And Manifest

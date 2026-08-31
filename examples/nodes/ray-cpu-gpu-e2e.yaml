@@ -1,0 +1,16 @@
+nodes:
+  - name: ray-cpu
+    host: ray-node.example.internal
+    role: candidate
+    allowed_tasks: [accuracy, run, performance_device, memory_device]
+    devices:
+      - id: 0
+        backend: cpu
+
+  - name: ray-gpu
+    host: ray-node.example.internal
+    role: candidate
+    allowed_tasks: [accuracy, run, performance_device, memory_device]
+    devices:
+      - id: 0
+        backend: gpu

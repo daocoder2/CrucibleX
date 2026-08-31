@@ -1,0 +1,30 @@
+nodes:
+  - name: ray-npu
+    host: 10.0.0.21
+    role: candidate
+    allowed_tasks: [accuracy, run, performance_device, memory_device]
+    devices:
+      - id: 0
+        backend: npu
+        resources:
+          npu: 1.0
+
+  - name: ray-aclnn
+    host: 10.0.0.21
+    role: candidate
+    allowed_tasks: [accuracy, run, performance_device, memory_device]
+    devices:
+      - id: 0
+        backend: aclnn
+        resources:
+          npu: 1.0
+
+  - name: ray-dcu
+    host: 10.0.0.22
+    role: candidate
+    allowed_tasks: [accuracy, run, performance_device, memory_device]
+    devices:
+      - id: 0
+        backend: dcu
+        resources:
+          dcu: 1.0

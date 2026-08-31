@@ -1,0 +1,32 @@
+cases:
+  - id: 13
+    operator:
+      name: torch.abs
+    invocation:
+      api: torch.abs
+      api_type: function
+      executor: function
+    oracle:
+      comparison: allclose
+      tolerance:
+        atol: 1.0e-6
+        rtol: 1.0e-6
+    generator: default
+    generation:
+      invalid_count: 2
+      constraints: [boundary_coverage]
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [1]
+        value_range:
+          valid: [[-1, 1]]
+          invalid: [[10, 20], [30, 40]]
+        metadata:
+          cycle_on_index: true
+          boundary_dtypes: [fp32]
+          boundary_values:
+            - [1]
+            - [2]

@@ -1,0 +1,42 @@
+# Deterministic generator-policy example: broadcast-compatible binary add.
+cases:
+  - id: 703
+    operator:
+      name: numpy.add.generated
+    invocation:
+      api: torch.add
+      api_type: function
+      executor: function
+    oracle:
+      comparison: allclose
+    generator: default
+    generation:
+      count: 2
+      seed: 703
+      constraints: [dtype_policy, shape_relationships]
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [2, 3]
+        metadata:
+          dtype_policy:
+            group: floating
+            groups:
+              floating: [fp16, fp32]
+            allowed: [fp32]
+          value_policy:
+            kind: one
+      - name: other
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [8, 3]
+        metadata:
+          shape_relationship:
+            kind: broadcastable_with
+            source: input
+          value_policy:
+            kind: constant
+            value: 2

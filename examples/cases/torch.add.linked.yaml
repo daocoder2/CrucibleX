@@ -1,0 +1,35 @@
+cases:
+  - id: 11
+    operator:
+      name: torch.add
+    invocation:
+      api: torch.add
+      api_type: function
+      executor: function
+    oracle:
+      comparison: allclose
+      tolerance:
+        atol: 1.0e-6
+        rtol: 1.0e-6
+    generator: default
+    generation:
+      count: 1
+      constraints: [linked_parameters]
+    parameters:
+      - name: lhs
+        kind: tensor
+        dtypes: [fp16]
+        shape:
+          dims: [2, 2]
+        value_range:
+          valid: [[-1, 1]]
+      - name: rhs
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [4, 4]
+        value_range:
+          valid: [[-1, 1]]
+        metadata:
+          same_dtype_as: lhs
+          same_shape_as: lhs

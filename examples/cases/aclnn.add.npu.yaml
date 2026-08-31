@@ -1,0 +1,56 @@
+# Bare ACLNN Add candidate compared against torch_npu reference on the same NPU host.
+cases:
+  - id: 111
+    operator:
+      name: aclnn.Add
+      version: null
+      backward: false
+    invocation:
+      api: Add
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Add
+          inputs:
+            - name: input
+              kind: tensor
+            - name: other
+              kind: tensor
+          attributes:
+            - name: alpha
+              kind: scalar
+              dtype: fp32
+              value: 1.0
+          outputs:
+            - name: output
+              kind: tensor
+              like: input
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance:
+        atol: 1.0e-6
+        rtol: 1.0e-6
+      metadata:
+        execute_reference: true
+        reference_api: torch.add
+        reference_api_type: function
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dim_count: [2]
+          dim_values: [4]
+        value_range:
+          valid: [[-1, 1]]
+      - name: other
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dim_count: [2]
+          dim_values: [4]
+        value_range:
+          valid: [[-1, 1]]

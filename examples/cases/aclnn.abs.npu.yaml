@@ -1,0 +1,41 @@
+# Bare ACLNN candidate compared against torch_npu reference on the same NPU host.
+cases:
+  - id: 110
+    operator:
+      name: aclnn.Abs
+      version: null
+      backward: false
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs:
+            - name: input
+              kind: tensor
+          outputs:
+            - name: output
+              kind: tensor
+              like: input
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance:
+        atol: 1.0e-6
+        rtol: 1.0e-6
+      metadata:
+        execute_reference: true
+        reference_api: torch.abs
+        reference_api_type: function
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dim_count: [2]
+          dim_values: [4]
+        value_range:
+          valid: [[-1, 1]]

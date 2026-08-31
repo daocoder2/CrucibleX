@@ -1,0 +1,22 @@
+operator:
+  name: atb.add
+  api: atb.add
+  api_type: backend
+backend_config:
+  workspace: /opt/atb
+  kernel: add
+  precision: fp16
+parameters:
+  - name: input
+    dtype: float16
+    shape: [4, 4]
+  - name: other
+    dtype: float16
+    shape: [4, 4]
+oracle:
+  comparison: allclose
+  tolerance:
+    atol: 1.0e-3
+    rtol: 1.0e-3
+metadata:
+  source: synthetic atb fixture

@@ -1,0 +1,34 @@
+cases:
+  - id: 1
+    operator:
+      name: torch.add
+      version: null
+      backward: false
+    invocation:
+      api: torch.add
+      api_type: function
+      executor: function
+    oracle:
+      comparison: allclose
+      reference_executor: function
+      tolerance:
+        atol: 1.0e-6
+        rtol: 1.0e-6
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dim_count: [2]
+          dim_values: [4]
+        value_range:
+          valid: [[-1, 1]]
+      - name: other
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dim_count: [2]
+          dim_values: [4]
+        value_range:
+          valid: [[0, 2]]

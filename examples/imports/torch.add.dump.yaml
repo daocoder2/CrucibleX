@@ -1,0 +1,20 @@
+operator:
+  name: torch.add
+  api: torch.add
+  api_type: function
+inputs:
+  - name: input
+    dtype: float32
+    shape: [2, 2]
+    data: [[1.0, 2.0], [3.0, 4.0]]
+  - name: other
+    dtype: float32
+    shape: [2, 2]
+    data: [[0.5, 1.5], [2.5, 3.5]]
+oracle:
+  comparison: allclose
+  tolerance:
+    atol: 1.0e-6
+    rtol: 1.0e-6
+metadata:
+  source: synthetic dump fixture

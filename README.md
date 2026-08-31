@@ -1,10 +1,6 @@
 # CrucibleX
 
-CrucibleX（坩埚）是一个 Ray-first 算子测试与验证工具包。它以“熔炼”和“解控”为核心隐喻：一方面把用例生成、设备调度、候选/参考执行、精度对比、结果持久化与报告生成串成可复现的验证流程，持续淬炼 kernel；另一方面解除算子验证中常见的环境绑定、后端差异、调度不透明和结果分散问题，让开发者更快定位缺陷，重新掌控验证过程。
-
-> Forge your kernels, burn the bugs.
->
-> 千锤百炼，方见真章.
+CrucibleX is a Ray-first operator testing toolkit for case generation, device scheduling, execution, comparison, and report delivery. It is the clean-slate successor to the previous ATK codebase.
 
 ## Layout
 
@@ -15,7 +11,9 @@ CrucibleX（坩埚）是一个 Ray-first 算子测试与验证工具包。它以
 - `src/cruciblex/report/` summary and export helpers
 - `src/cruciblex/plugins/` generator, executor, and comparator plugins
 - `tests/` unit and integration tests
-- `examples/` minimal node and case examples
+- `examples/` minimal node and case examples, including operator onboarding templates
+- `docs/cli.md` command reference for `cx run`, `cx report`, `cx repro`, `cx onboard`, and `cx generate`
+- `docs/operator-onboarding.md` operator onboarding checklist and smoke flow
 
 ## Development
 
@@ -25,10 +23,11 @@ Install and run with uv:
 uv sync
 uv run cx --help
 uv run cx doctor
+uv run cx generate --case examples/cases/torch.abs.generated.yaml --output cx_output/generated-smoke
 uv run cx run --case examples/cases/torch.abs.yaml --nodes examples/nodes/local.yaml
 ```
 
-Ray is the default execution path. Use `--scheduler local` only for lightweight debugging or smoke tests that should avoid starting Ray.
+Ray is the default execution path. Use `--scheduler local` only for lightweight debugging or smoke tests that should avoid starting Ray. See `docs/cli.md` for command inputs, outputs, and common workflows.
 
 Run tests with:
 

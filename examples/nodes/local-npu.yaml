@@ -1,0 +1,9 @@
+# Single-host NPU execution on the machine that owns /dev/davinci* devices.
+nodes:
+  - name: local-npu
+    host: 127.0.0.1
+    role: candidate
+    allowed_tasks: [accuracy, run, performance_device, memory_device]
+    devices:
+      - id: 0
+        backend: npu

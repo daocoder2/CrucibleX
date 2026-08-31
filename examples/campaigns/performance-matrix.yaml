@@ -1,0 +1,10 @@
+matrix:
+  base:
+    case: examples/cases/torch.abs.npu.yaml
+    nodes: examples/nodes/local-npu.yaml
+    task: performance_device
+    scheduler: local
+    retry_failed: true
+  dimensions:
+    workload: [smoke, repeatable]
+    report: [json, evidence]

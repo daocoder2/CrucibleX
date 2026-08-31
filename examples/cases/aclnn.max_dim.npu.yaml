@@ -1,0 +1,36 @@
+cases:
+  - id: 205
+    operator:
+      name: aclnn.max_dim
+      api: aclnnMaxDim
+      api_type: aclnn
+      executor: aclnn
+    invocation:
+      api: aclnnMaxDim
+      api_type: aclnn
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: MaxDim
+          inputs:
+            - {name: input, kind: tensor}
+          attributes:
+            - {name: dim, kind: native_int, value: 1}
+            - {name: keepdim, kind: native_bool, value: true}
+          outputs:
+            - {name: values, kind: tensor, like: input, dtype: fp32, shape: [2, 1]}
+            - {name: indices, kind: tensor, like: input, dtype: int64, shape: [2, 1]}
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 4]}
+        values: [[3.0, 1.0, 4.0, 2.0], [8.0, 6.0, 7.0, 5.0]]
+    generation:
+      count: 1
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-5, rtol: 1.0e-5}
+    metadata:
+      tags: [hardware, npu, aclnn, multi-output, reduction]

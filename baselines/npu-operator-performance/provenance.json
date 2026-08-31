@@ -1,0 +1,12 @@
+{
+  "source": "real Ascend operator performance matrix",
+  "host": "redacted",
+  "image": "redacted",
+  "image_digest": "redacted",
+  "cann_version": "8.3.RC1",
+  "operators": ["torch.relu", "torch.softmax", "torch.matmul"],
+  "tasks": ["performance_device", "memory_device"],
+  "sample_count": 8,
+  "policy": "scripts/npu_performance_gate_policy.yaml",
+  "notes": "Baseline uses fixed hardware cases with warmup=10, repeat=20, min_time_ms=100. Profiler evidence is explicitly optional because this matrix does not emit profiler_summary.json."
+}

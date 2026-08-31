@@ -1,0 +1,27 @@
+operator:
+  name: torch.matmul
+  api: torch.matmul
+  api_type: function
+samples:
+  - parameters:
+      - name: input
+        dtype: float32
+        shape: [2, 3]
+      - name: other
+        dtype: float32
+        shape: [3, 4]
+  - parameters:
+      - name: input
+        dtype: float16
+        shape: [8, 16]
+      - name: other
+        dtype: float16
+        shape: [16, 32]
+oracle:
+  comparison: allclose
+  tolerance:
+    atol: 1.0e-3
+    rtol: 1.0e-3
+metadata:
+  source: synthetic profile fixture
+count: 4

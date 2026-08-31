@@ -1,0 +1,7 @@
+runs:
+  - name: fuzz-smoke
+    case: examples/cases/torch.abs.fuzz.yaml
+    nodes: examples/nodes/local.yaml
+    task: fuzz
+    scheduler: local
+    output: cx_output/campaign-fuzz-smoke

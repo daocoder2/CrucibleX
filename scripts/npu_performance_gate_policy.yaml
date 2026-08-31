@@ -1,0 +1,12 @@
+metrics:
+  latency_p95_ms:
+    tasks: [performance_device]
+    max_regression_percent: 35
+  throughput_items_per_s:
+    tasks: [performance_device]
+    min_regression_percent: 35
+  hardware_memory_peak_bytes:
+    tasks: [memory_device]
+    max_regression_percent: 35
+profiler:
+  required: false

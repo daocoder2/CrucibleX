@@ -1,0 +1,7 @@
+required:
+  backend: [npu]
+  task: [accuracy]
+required_combinations:
+  - {operator: torch.relu, backend: npu, task: accuracy}
+  - {operator: torch.softmax, backend: npu, task: accuracy}
+  - {operator: torch.matmul, backend: npu, task: accuracy}

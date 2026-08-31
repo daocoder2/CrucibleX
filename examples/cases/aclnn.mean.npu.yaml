@@ -1,0 +1,36 @@
+cases:
+  - id: 206
+    operator:
+      name: aclnn.mean
+      api: aclnnMean
+      api_type: aclnn
+      executor: aclnn
+    invocation:
+      api: aclnnMean
+      api_type: aclnn
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Mean
+          inputs:
+            - {name: input, kind: tensor}
+          attributes:
+            - {name: dim, kind: int_array, value: [1]}
+            - {name: keepdim, kind: native_bool, value: false}
+            - {name: dtype, kind: native_int, value: 0}
+          outputs:
+            - {name: output, kind: tensor, like: input, dtype: fp32, shape: [2]}
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 4]}
+        values: [[3.0, 1.0, 4.0, 2.0], [8.0, 6.0, 7.0, 5.0]]
+    generation:
+      count: 1
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-5, rtol: 1.0e-5}
+    metadata:
+      tags: [hardware, npu, aclnn, int-array, reduction]

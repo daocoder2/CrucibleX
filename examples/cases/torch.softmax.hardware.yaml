@@ -1,0 +1,27 @@
+# Torch softmax hardware sample with an explicit axis attribute.
+cases:
+  - id: 202
+    operator: {name: torch.softmax}
+    invocation:
+      api: torch.softmax
+      api_type: function
+      executor: torch
+      metadata: {task: accuracy}
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-5, rtol: 1.0e-5}
+    generator: default
+    generation: {count: 1, seed: 202}
+    metadata:
+      tags: [hardware, axis, torch]
+      benchmark_policy: {warmup: 10, repeat: 20, min_time_ms: 100, throughput_items_per_call: 8}
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 4]}
+        value_range: {valid: [[-2, 2]]}
+      - name: dim
+        kind: attribute
+        value_range: {valid: [1]}

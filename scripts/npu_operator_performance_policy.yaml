@@ -1,0 +1,10 @@
+required:
+  backend: [npu]
+  task: [performance_device, memory_device]
+required_combinations:
+  - {operator: torch.relu, backend: npu, task: performance_device}
+  - {operator: torch.relu, backend: npu, task: memory_device}
+  - {operator: torch.softmax, backend: npu, task: performance_device}
+  - {operator: torch.softmax, backend: npu, task: memory_device}
+  - {operator: torch.matmul, backend: npu, task: performance_device}
+  - {operator: torch.matmul, backend: npu, task: memory_device}
