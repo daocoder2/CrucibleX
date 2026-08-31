@@ -350,6 +350,15 @@ class OperatorFactsConstraint(ConstraintPlugin):
                     facts = merge_facts(facts, operator_facts(name))
         if isinstance(inline_facts, dict):
             facts = merge_facts(facts, inline_facts)
+        case_metadata = dict(case.metadata)
+        contract = facts.get("contract")
+        explicit_contract = case.generation.metadata.get("operator_contract")
+        if isinstance(contract, dict) or isinstance(explicit_contract, dict):
+            case_metadata["resolved_operator_contract"] = merge_facts(
+                dict(contract) if isinstance(contract, dict) else {},
+                dict(explicit_contract) if isinstance(explicit_contract, dict) else {},
+            )
+            case = case.model_copy(update={"metadata": case_metadata})
         facts_by_name = facts.get("parameters")
         if not isinstance(facts_by_name, dict):
             return case
@@ -384,6 +393,87 @@ class OperatorFactsConstraint(ConstraintPlugin):
             metadata["resolved_operator_facts"] = True
             updated.append(parameter.model_copy(update={"metadata": metadata}))
         return case.model_copy(update={"parameters": updated})
+
+
+class OperatorContractConstraint(ConstraintPlugin):
+    """Resolve case-level operator facts into auditable shape and dtype evidence."""
+
+    def after_case(self, case: CaseSpec, context: GenerationContext) -> CaseSpec:
+        contract = case.metadata.get("resolved_operator_contract")
+        if not isinstance(contract, dict):
+            return case
+        parameters = {parameter.name: parameter for parameter in case.parameters if parameter.name}
+        resolved = dict(contract)
+        family = contract.get("family")
+        input_name = str(contract.get("input", "input"))
+        input_parameter = parameters.get(input_name)
+        input_shape = _shape_dims(input_parameter.shape if input_parameter else None)
+        dim = _contract_attribute(contract, parameters, "dim")
+        if family == "reduce" and input_shape is not None:
+            resolved["output_shape"] = _reduce_shape(input_shape, dim, bool(_contract_attribute(contract, parameters, "keepdim")))
+            resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+        elif family == "sort" and input_shape is not None:
+            resolved["output_shape"] = list(input_shape)
+            resolved["values_dtype"] = _contract_dtype(contract, input_parameter)
+            resolved["indices_dtype"] = "int64"
+        elif family == "topk" and input_shape is not None:
+            k = _contract_attribute(contract, parameters, "k")
+            if isinstance(k, int) and 0 < k <= input_shape[dim % len(input_shape) if isinstance(dim, int) else -1]:
+                output_shape = list(input_shape)
+                output_shape[dim % len(output_shape) if isinstance(dim, int) else -1] = k
+                resolved["output_shape"] = output_shape
+                resolved["values_dtype"] = _contract_dtype(contract, input_parameter)
+                resolved["indices_dtype"] = "int64"
+        elif family == "index" and input_shape is not None:
+            index_dim = dim if isinstance(dim, int) else 0
+            resolved["index_range"] = [0, input_shape[index_dim % len(input_shape)] - 1]
+            resolved["index_dtype"] = "int64"
+            index_parameter = parameters.get(str(contract.get("index", "index")))
+            index_shape = _shape_dims(index_parameter.shape if index_parameter else None)
+            mode = contract.get("mode", "index_select")
+            if mode == "gather" and index_shape is not None:
+                resolved["output_shape"] = index_shape
+            elif mode == "scatter":
+                resolved["output_shape"] = list(input_shape)
+            elif mode == "select":
+                resolved["output_shape"] = [value for position, value in enumerate(input_shape) if position != index_dim % len(input_shape)]
+        elif family == "matmul":
+            left = _shape_dims(parameters.get(str(contract.get("left", "input"))).shape if parameters.get(str(contract.get("left", "input"))) else None)
+            right = _shape_dims(parameters.get(str(contract.get("right", "other"))).shape if parameters.get(str(contract.get("right", "other"))) else None)
+            if left and right and len(left) >= 2 and len(right) >= 2:
+                resolved["batch_shape"] = _broadcast_dims(left[:-2], right[:-2])
+                resolved["inner_dimension"] = left[-1]
+        metadata = dict(case.metadata)
+        metadata["resolved_operator_contract"] = resolved
+        return case.model_copy(update={"metadata": metadata})
+
+
+def _contract_attribute(contract: dict[str, object], parameters: dict[str, ParameterSpec], name: str) -> object:
+    parameter_name = contract.get(f"{name}_parameter", name)
+    parameter = parameters.get(str(parameter_name))
+    if parameter is not None and parameter.values is not None:
+        return parameter.values
+    return contract.get(name)
+
+
+def _contract_dtype(contract: dict[str, object], parameter: ParameterSpec | None) -> str | None:
+    selected = contract.get("output_dtype")
+    if selected == "input":
+        return parameter.dtypes[0] if parameter and parameter.dtypes else None
+    return str(selected) if isinstance(selected, str) else None
+
+
+def _reduce_shape(shape: list[int], dim: object, keepdim: bool) -> list[int]:
+    dimensions = range(len(shape)) if dim is None else ([dim] if isinstance(dim, int) else dim)
+    selected = {int(item) % len(shape) for item in dimensions if isinstance(item, int)}
+    return [1 if index in selected and keepdim else value for index, value in enumerate(shape) if keepdim or index not in selected]
+
+
+def _broadcast_dims(left: list[int], right: list[int]) -> list[int]:
+    width = max(len(left), len(right))
+    left = [1] * (width - len(left)) + left
+    right = [1] * (width - len(right)) + right
+    return [max(first, second) if first in {1, second} or second == 1 else 1 for first, second in zip(left, right, strict=True)]
 
 
 class DtypePolicyConstraint(ConstraintPlugin):
@@ -567,6 +657,7 @@ def _num_elements(dims: list[int]) -> int:
 
 CONSTRAINT_REGISTRY.register("boundary_coverage")(BoundaryCoverageConstraint)
 CONSTRAINT_REGISTRY.register("operator_facts")(OperatorFactsConstraint)
+CONSTRAINT_REGISTRY.register("operator_contract")(OperatorContractConstraint)
 CONSTRAINT_REGISTRY.register("value_policy")(ValuePolicyConstraint)
 CONSTRAINT_REGISTRY.register("dtype_policy")(DtypePolicyConstraint)
 CONSTRAINT_REGISTRY.register("linked_parameters")(LinkedParametersConstraint)

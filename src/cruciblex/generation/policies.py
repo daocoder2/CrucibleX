@@ -35,6 +35,7 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         },
     },
     "torch.matmul": {
+        "contract": {"family": "matmul", "left": "input", "right": "other", "output_dtype": "input"},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "value_policy": {"kind": "matrix_profile", "profile": "well_conditioned"}},
             "other": {
@@ -50,11 +51,13 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         },
     },
     "torch.sum": {
+        "contract": {"family": "reduce", "input": "input", "dim_parameter": "dim", "keepdim_parameter": "keepdim", "output_dtype": "input"},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
         },
     },
     "torch.mean": {
+        "contract": {"family": "reduce", "input": "input", "dim_parameter": "dim", "keepdim_parameter": "keepdim", "output_dtype": "input"},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
         },
@@ -65,19 +68,51 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         },
     },
     "torch.sort": {
+        "contract": {"family": "topk", "input": "input", "dim_parameter": "dim", "output_dtype": "input", "k": None},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
         },
     },
     "torch.topk": {
+        "contract": {"family": "topk", "input": "input", "k_parameter": "k", "dim_parameter": "dim", "largest_parameter": "largest", "sorted_parameter": "sorted", "output_dtype": "input"},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
         },
     },
     "torch.index_select": {
+        "contract": {"family": "index", "input": "input", "index": "index", "dim_parameter": "dim"},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "value_policy": {"kind": "normal", "scale": 1.0}},
             "index": {"dtype_policy": {"library": "integer", "allowed": ["int64"]}},
+        },
+    },
+    "torch.select": {
+        "contract": {"family": "index", "mode": "select", "input": "input", "index": "index", "dim_parameter": "dim"},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}},
+            "index": {"dtype_policy": {"library": "integer", "allowed": ["int64"]}},
+        },
+    },
+    "torch.gather": {
+        "contract": {"family": "index", "mode": "gather", "input": "input", "index": "index", "dim_parameter": "dim"},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}},
+            "index": {"dtype_policy": {"library": "integer", "allowed": ["int64"]}},
+        },
+    },
+    "torch.scatter": {
+        "contract": {"family": "index", "mode": "scatter", "input": "input", "index": "index", "dim_parameter": "dim"},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}},
+            "index": {"dtype_policy": {"library": "integer", "allowed": ["int64"]}},
+            "src": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_shape_as", "source": "input"}},
+        },
+    },
+    "torch.bmm": {
+        "contract": {"family": "matmul", "left": "input", "right": "mat2", "output_dtype": "input", "batch_mode": "equal"},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [3, 3]}},
+            "mat2": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [3, 3]}},
         },
     },
 }

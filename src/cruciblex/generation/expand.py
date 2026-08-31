@@ -93,8 +93,8 @@ def _apply_invalid_values(case: CaseSpec, invalid_index: int) -> CaseSpec:
 
 def _constraint_names(case: CaseSpec) -> list[str]:
     names = list(case.generation.constraints)
-    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select"}:
-        for name in ("operator_facts", "dtype_policy", "value_policy", "shape_relationships", "dtype_promotion"):
+    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm"}:
+        for name in ("operator_facts", "dtype_policy", "value_policy", "shape_relationships", "operator_contract", "dtype_promotion"):
             if name not in names:
                 names.append(name)
     if case.generation.max_elements is not None and "max_elements" not in names:

@@ -144,3 +144,18 @@ collection_relationship:
 `scripts/hardware_dtype_layout_gate.sh` 是 bf16、layout、stride、special-value 四条 lane 的可复用硬件 gate。调用者必须显式设置 `CASE_BF16`、`CASE_LAYOUT`、`CASE_STRIDE`、`CASE_SPECIAL`，并可覆盖 `NODE_PATH`、`SCHEDULER` 与 `OUTPUT_ROOT`。每条 lane 执行 accuracy 后要求 result metrics 同时含 input dtype contract 和 `backend_dtype_source`，因此只适合实际 Torch/ACLNN device-tensor executor 的环境。
 
 该脚本不包含设备地址、镜像、registry 或其他私有运行配置。
+
+## Operator Contract Evidence
+
+`operator_facts.contract` 是 case-level 关系事实，expand 后写入 `case.metadata.resolved_operator_contract`。Case 的 `generation.metadata.operator_contract` 可覆盖 library defaults。该 evidence 不修改 invocation/output ABI。
+
+- reduce (`sum`/`mean`)：由 input shape、`dim`、`keepdim` 推导 output shape；`output_dtype: input` 记录 input dtype。
+- sort/topk：sort 保持 input shape；topk 仅当 `0 < k <= size(dim)` 时记录替换该轴后的 output shape。values dtype 跟随 input，indices dtype 为 `int64`。`largest`、`sorted` 保留为 attribute contract。
+- index/select/gather/scatter：均声明 `int64` index 和 `[0, size(dim)-1]` range。gather output shape 跟随 index，scatter 跟随 input，select 移除选中轴。range 是生成 evidence，exact index value 仍由 Case 或后续专用 generator 落实。
+- matmul/bmm：记录 inner dimension 和 batch broadcast shape。bmm contract 还声明 equal batch mode；当前 evidence 不自动改写用户定义的 tensor shape。
+
+## Multi-parameter And ACLNN Declarations
+
+conv、norm、attention 应通过显式 `generation.metadata.operator_contract` 声明参数关系：conv 的 input/weight/bias/groups/stride/padding/dilation，norm 的 normalized_shape/weight/bias/eps，attention 的 Q/K/V/head/mask/dropout/causal。当前没有已验证的通用 shape formula，因此它们不会自动启用 builtin facts 或宣称可执行。
+
+ACLNN 可以在 contract 中声明 `format`、`storage_shape`、`workspace`、`dynamic_output` 需求，但当前 bridge 固定 ND format、contiguous input、static/like output allocation。workspace 已由 runtime 内部申请释放；dynamic output、非连续 storage/stride 和未支持的 optional/list ABI 仍由 preflight 拒绝。只有真实后端 evidence 才能将这些 declaration 标为 supported。

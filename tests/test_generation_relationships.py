@@ -405,3 +405,20 @@ def test_index_select_facts_select_int64_index():
 
     assert expanded.parameters[0].dtypes == ["fp32"]
     assert expanded.parameters[1].dtypes == ["int64"]
+
+
+def test_operator_contract_resolves_reduce_topk_index_and_matmul_evidence():
+    reduce = CaseSpec(id=740, operator=OperatorSpec(name="torch.mean"), invocation=InvocationSpec(api="torch.mean", api_type="function"), parameters=[_parameter("input", [2, 3, 4]), _parameter("dim", [1]).model_copy(update={"values": 1}), _parameter("keepdim", [1]).model_copy(update={"values": True})])
+    topk = CaseSpec(id=741, operator=OperatorSpec(name="torch.topk"), invocation=InvocationSpec(api="torch.topk", api_type="function"), parameters=[_parameter("input", [2, 5]), _parameter("k", [1]).model_copy(update={"values": 3}), _parameter("dim", [1]).model_copy(update={"values": 1})])
+    indexed = CaseSpec(id=742, operator=OperatorSpec(name="torch.index_select"), invocation=InvocationSpec(api="torch.index_select", api_type="function"), parameters=[_parameter("input", [2, 5]), _parameter("index", [2]), _parameter("dim", [1]).model_copy(update={"values": 1})])
+    matmul = CaseSpec(id=743, operator=OperatorSpec(name="torch.matmul"), invocation=InvocationSpec(api="torch.matmul", api_type="function"), parameters=[_parameter("input", [2, 1, 3, 4]), _parameter("other", [1, 5, 4, 6])])
+
+    expanded = expand_cases([reduce, topk, indexed, matmul])
+
+    assert expanded[0].metadata["resolved_operator_contract"]["output_shape"] == [2, 1, 4]
+    assert expanded[0].metadata["resolved_operator_contract"]["output_dtype"] == "fp32"
+    assert expanded[1].metadata["resolved_operator_contract"]["output_shape"] == [2, 3]
+    assert expanded[1].metadata["resolved_operator_contract"]["indices_dtype"] == "int64"
+    assert expanded[2].metadata["resolved_operator_contract"]["index_range"] == [0, 4]
+    assert expanded[3].metadata["resolved_operator_contract"]["batch_shape"] == [2, 5]
+    assert expanded[3].metadata["resolved_operator_contract"]["inner_dimension"] == 4
