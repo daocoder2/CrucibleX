@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from cruciblex.domain import BackendKind, ExecutionResult, ResultStatus, TaskKind
+from cruciblex.domain import ArtifactRef, BackendKind, ExecutionResult, ResultStatus, TaskKind
 from cruciblex.runtime.pipeline import ExecutionPipeline
 from cruciblex.storage.results import ResultStore
 
@@ -49,6 +49,37 @@ def test_gpu_evidence_projects_runtime_probe_and_artifact_reference():
     assert evidence.runtime == {"cuda_version": "12.6", "gpu_device_count": 4}
     assert evidence.fingerprint == "sha256:example"
     assert evidence.artifact_refs == ["artifacts/gpu_evidence.json"]
+
+
+def test_result_store_derives_evidence_from_legacy_gpu_metrics(tmp_path):
+    result = ExecutionResult(
+        plan_id="1:gpu:gpu:0:accuracy",
+        case_id=1,
+        case_name="torch.add",
+        node_name="gpu",
+        backend=BackendKind.GPU,
+        device_id=0,
+        task=TaskKind.ACCURACY,
+        status=ResultStatus.PASSED,
+        metrics={
+            "host": "gpu-worker",
+            "node": "gpu",
+            "resolved_device": "cuda:0",
+            "gpu_available": True,
+            "cuda_version": "12.6",
+            "gpu_device_count": 1,
+            "gpu_evidence_fingerprint": "sha256:example",
+        },
+        artifacts=[ArtifactRef(name="gpu_evidence", path=tmp_path / "gpu_evidence.json", kind="gpu_evidence")],
+    )
+
+    ResultStore(tmp_path).write_results_jsonl([result])
+    stored = ResultStore(tmp_path).read_results_jsonl()[0]
+
+    assert stored.evidence is not None
+    assert stored.evidence.probe_status == "available"
+    assert stored.evidence.fingerprint == "sha256:example"
+    assert stored.evidence.artifact_refs == [str(tmp_path / "gpu_evidence.json")]
 
 
 def test_csv_projects_hardware_evidence(tmp_path):

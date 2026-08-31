@@ -21,6 +21,10 @@
 - NPU 和 ACLNN 的真实硬件结论必须由匹配资源的 Ray worker、执行结果和保留 artifact 支撑。
 - CSV、Markdown 等输出应投影 `evidence`；旧的 backend 专用 metrics 仅在迁移期保留。
 
+## 滚动升级
+
+Ray worker 与 Driver 允许短暂处于不同的部署版本。若旧 worker 返回的执行结果缺少 `evidence`，Driver 在持久化时只会从该结果的原始 metrics 与 `gpu_evidence` artifact 归一化证据；已有 `evidence` 不会被覆盖，cross-device compare 记录也不会被伪造成设备执行证据。
+
 ## 当前覆盖
 
 GPU 已把现有 probe、CUDA 版本、fingerprint 和 `gpu_evidence` artifact 映射到统一结构。CPU、NPU 和 ACLNN 已输出同一契约与 `unknown` probe 状态，直到各自 runtime probe 和真实硬件 gate 落地。

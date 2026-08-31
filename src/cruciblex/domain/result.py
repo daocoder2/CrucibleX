@@ -52,3 +52,34 @@ class ExecutionResult(BaseModel):
     evidence: HardwareEvidence | None = None
     artifact_payloads: list[ArtifactPayload] = Field(default_factory=list, exclude=True)
     error: str | None = None
+
+    def with_derived_evidence(self) -> ExecutionResult:
+        if self.evidence is not None or self.metrics.get("stage") == "cross_device_compare":
+            return self
+        metrics = self.metrics
+        artifact_refs = [str(artifact.path) for artifact in self.artifacts if artifact.kind == "gpu_evidence"]
+        if metrics.get("gpu_evidence_path"):
+            artifact_refs.append(str(metrics["gpu_evidence_path"]))
+        artifact_refs = list(dict.fromkeys(artifact_refs))
+        probe_status = "unknown"
+        runtime: dict[str, Any] = {}
+        fingerprint = None
+        if self.backend == BackendKind.GPU:
+            probe_status = "available" if metrics.get("gpu_available") else "unavailable"
+            runtime = {key: metrics[key] for key in ("cuda_version", "gpu_device_count") if metrics.get(key) is not None}
+            fingerprint = metrics.get("gpu_evidence_fingerprint")
+        return self.model_copy(
+            update={
+                "evidence": HardwareEvidence(
+                    backend=self.backend,
+                    host=metrics.get("host"),
+                    node=metrics.get("node"),
+                    device_id=metrics.get("device_id", self.device_id),
+                    resolved_device=metrics.get("resolved_device"),
+                    probe_status=probe_status,
+                    runtime=runtime,
+                    fingerprint=fingerprint,
+                    artifact_refs=artifact_refs,
+                )
+            }
+        )

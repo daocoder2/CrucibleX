@@ -31,7 +31,7 @@ class ResultStore:
 
     def write_results_jsonl(self, results: list[ExecutionResult], name: str = "results.jsonl") -> Path:
         path = self.ensure() / name
-        lines = [json.dumps(result.model_dump(mode="json"), ensure_ascii=False) for result in results]
+        lines = [json.dumps(result.with_derived_evidence().model_dump(mode="json"), ensure_ascii=False) for result in results]
         content = "\n".join(lines)
         if content:
             content += "\n"
@@ -59,7 +59,7 @@ class ResultStore:
             writer = csv.DictWriter(handle, fieldnames=fieldnames)
             writer.writeheader()
             for result in results:
-                writer.writerow(self._result_row(result))
+                writer.writerow(self._result_row(result.with_derived_evidence()))
         return path
 
     def read_results_jsonl(self, name: str = "results.jsonl") -> list[ExecutionResult]:
