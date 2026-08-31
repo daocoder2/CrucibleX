@@ -60,9 +60,11 @@ class CrossDeviceComparator:
         comparator = COMPARATOR_REGISTRY.resolve(npu.metrics.get("comparison", "allclose"))
         tolerance = self._tolerance(npu)
         metadata = {"reference_plan_id": reference.plan_id, "gpu_plan_id": gpu.plan_id, "npu_plan_id": npu.plan_id}
-        gpu_report = comparator.compare(ComparisonRequest(expected=reference_output, actual=gpu_output, tolerance=tolerance, metadata=metadata))
         npu_report = comparator.compare(ComparisonRequest(expected=reference_output, actual=npu_output, tolerance=tolerance, metadata=metadata))
-        baseline_passed = npu_report.passed and npu_report.max_abs_diff <= gpu_report.max_abs_diff
+        policy = npu.metrics.get("accuracy_policy", {})
+        gpu_metrics = self._accuracy_metrics(reference_output, gpu_output, policy, tolerance)
+        npu_metrics = self._accuracy_metrics(reference_output, npu_output, policy, tolerance)
+        baseline_passed, failed_metrics = self._accuracy_gate(npu_report.passed, gpu_metrics, npu_metrics, policy)
         path = self._comparison_path(reference, npu).with_name(
             f"{self._safe_path_part(reference.plan_id)}__npu-vs-gpu-baseline.json"
         )
@@ -74,9 +76,10 @@ class CrossDeviceComparator:
             "gpu_evidence": gpu.evidence.model_dump(mode="json") if gpu.evidence else None,
             "npu_evidence": npu.evidence.model_dump(mode="json") if npu.evidence else None,
             "tolerance": tolerance,
-            "gpu_max_abs_diff": gpu_report.max_abs_diff,
-            "npu_max_abs_diff": npu_report.max_abs_diff,
-            "npu_within_gpu_baseline": npu_report.max_abs_diff <= gpu_report.max_abs_diff,
+            "accuracy_policy": policy,
+            "gpu_metrics": gpu_metrics,
+            "npu_metrics": npu_metrics,
+            "failed_metrics": failed_metrics,
             "passed": baseline_passed,
         }
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,15 +100,57 @@ class CrossDeviceComparator:
                 "reference_plan_id": reference.plan_id,
                 "gpu_plan_id": gpu.plan_id,
                 "npu_plan_id": npu.plan_id,
-                "gpu_max_abs_diff": gpu_report.max_abs_diff,
-                "npu_max_abs_diff": npu_report.max_abs_diff,
-                "npu_within_gpu_baseline": npu_report.max_abs_diff <= gpu_report.max_abs_diff,
+                "accuracy_policy": policy,
+                "gpu_metrics": gpu_metrics,
+                "npu_metrics": npu_metrics,
+                "failed_metrics": failed_metrics,
+                "npu_within_gpu_baseline": not any("gpu_baseline" in item for item in failed_metrics),
                 "failure_kind": "comparison_passed" if baseline_passed else "npu_exceeds_gpu_baseline",
-                "compare_detail": "NPU error is within GPU baseline" if baseline_passed else "NPU error exceeds GPU baseline or absolute tolerance",
+                "compare_detail": "NPU metrics satisfy the GPU baseline" if baseline_passed else f"NPU failed metrics: {', '.join(failed_metrics)}",
             },
             artifacts=[ArtifactRef(name="cpu_npu_gpu_gate", path=path, kind="comparison", metadata={"role": "driver"})],
             error=None if baseline_passed else "NPU error exceeds GPU baseline or absolute tolerance",
         )]
+
+    def _accuracy_metrics(self, expected: object, actual: object, policy: object, tolerance: dict[str, float]) -> dict[str, float | bool | int]:
+        config = policy if isinstance(policy, dict) else {}
+        category = str(config.get("category", "floating"))
+        expected_arr = np.asarray(expected, dtype=np.float64)
+        actual_arr = np.asarray(actual, dtype=np.float64)
+        diff = np.abs(expected_arr - actual_arr)
+        if category in {"non_computational", "integer"}:
+            return {"bitwise_match": bool(np.array_equal(np.asarray(expected), np.asarray(actual)))}
+        denominator = np.maximum(np.abs(expected_arr), float(config.get("relative_epsilon", 1e-12)))
+        relative = diff / denominator
+        metrics: dict[str, float | bool | int] = {
+            "mare": float(relative.max()) if relative.size else 0.0,
+            "mere": float(relative.mean()) if relative.size else 0.0,
+            "rmse": float(np.sqrt(np.mean(np.square(diff)))) if diff.size else 0.0,
+        }
+        if category == "quantized":
+            metrics["ae"] = float(diff.max()) if diff.size else 0.0
+        threshold = config.get("small_value_threshold")
+        if threshold is not None:
+            small = np.abs(expected_arr) <= float(threshold)
+            metrics["small_value_error_count"] = int(np.count_nonzero(small & (diff > tolerance["atol"])))
+        return metrics
+
+    def _accuracy_gate(self, allclose_passed: bool, gpu: dict[str, float | bool | int], npu: dict[str, float | bool | int], policy: object) -> tuple[bool, list[str]]:
+        config = policy if isinstance(policy, dict) else {}
+        thresholds = config.get("thresholds", {}) if isinstance(config.get("thresholds", {}), dict) else {}
+        failed = [] if allclose_passed else ["allclose"]
+        for name, npu_value in npu.items():
+            gpu_value = gpu.get(name)
+            if isinstance(npu_value, bool):
+                if not npu_value:
+                    failed.append(name)
+                continue
+            if not isinstance(gpu_value, (int, float)) or npu_value > gpu_value:
+                failed.append(f"{name}:gpu_baseline")
+            threshold = thresholds.get(name)
+            if threshold is not None and npu_value > float(threshold):
+                failed.append(f"{name}:threshold")
+        return not failed, failed
 
     def _needs_compare(self, task: TaskKind) -> bool:
         return task in {TaskKind.ACCURACY, TaskKind.ACCURACY_LOAD, TaskKind.ACCURACY_DC}

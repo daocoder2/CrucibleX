@@ -25,6 +25,32 @@
 
 Ray worker 与 Driver 允许短暂处于不同的部署版本。若旧 worker 返回的执行结果缺少 `evidence`，Driver 在持久化时只会从该结果的原始 metrics 与 `gpu_evidence` artifact 归一化证据；已有 `evidence` 不会被覆盖，cross-device compare 记录也不会被伪造成设备执行证据。
 
+## 精度度量策略
+
+Case 可以在 `oracle.accuracy_policy` 中声明算子类别和阈值。类别决定适用的指标，不能用一个通用 allclose 结果替代：
+
+```yaml
+oracle:
+  accuracy_policy:
+    category: non_computational | integer | quantized | floating
+    thresholds:
+      ae: 0.0
+      mare: 0.0
+      mere: 0.0
+      rmse: 0.0
+      small_value_error_count: 0
+    small_value_threshold: 0.1
+```
+
+| 算子类别 | Bitwise Match | AE | MARE | MERE | RMSE | 小值域错误数 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 非计算类 / 搬迁 / Cast | 适用 | 不适用 | 不适用 | 不适用 | 不适用 | 不适用 |
+| 整数计算（INT8/INT16/INT32） | 适用 | 不适用 | 不适用 | 不适用 | 不适用 | 不适用 |
+| 量化计算（低精度/量化 dtype） | 不适用 | 适用 | 适用 | 适用 | 适用 | 适用 |
+| 浮点计算（FLOAT16/FLOAT32） | 不适用 | 不适用 | 适用 | 适用 | 适用 | 适用 |
+
+小值域错误数只在 Case 同时声明 `small_value_threshold` 时计算；错误定义为 reference 绝对值不大于该阈值且误差超过 `atol` 的元素数量。高精度 CPU 是共同 reference，GPU 和 NPU 分别计算上述适用指标；NPU 必须满足自身阈值，并且每个适用指标不劣于 GPU。
+
 ## 当前覆盖
 
 GPU 已把现有 probe、CUDA 版本、fingerprint 和 `gpu_evidence` artifact 映射到统一结构。NPU 与 ACLNN 会采集 `torch.npu.is_available()`、设备数量、Torch/torch_npu 版本和设备名称，写入 `npu_evidence` artifact；只有 probe 成功时才标记 `available`。CPU 仍输出 `unknown`。

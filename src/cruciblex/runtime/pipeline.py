@@ -209,6 +209,7 @@ class ExecutionPipeline:
                     "comparison": plan.case.oracle.comparison,
                     "atol": float(plan.case.oracle.tolerance.get("atol", 1e-6)),
                     "rtol": float(plan.case.oracle.tolerance.get("rtol", 1e-6)),
+                    "accuracy_policy": plan.case.oracle.accuracy_policy,
                     "candidate_role": ExecutionRole.CANDIDATE.value,
                 }
             )

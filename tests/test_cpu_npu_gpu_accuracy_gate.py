@@ -6,7 +6,7 @@ from cruciblex.plugins.comparators import allclose  # noqa: F401 - registers the
 from cruciblex.report.cross_compare import CrossDeviceComparator
 
 
-def _result(tmp_path, backend, values, plan_id):
+def _result(tmp_path, backend, values, plan_id, accuracy_policy=None):
     output = tmp_path / f"{plan_id}.json"
     output.write_text(json.dumps({"dtype": "float64", "shape": [2], "data": values}), encoding="utf-8")
     return ExecutionResult(
@@ -18,7 +18,7 @@ def _result(tmp_path, backend, values, plan_id):
         device_id=0,
         task=TaskKind.ACCURACY,
         status=ResultStatus.PASSED,
-        metrics={"atol": 0.01, "rtol": 0.0},
+        metrics={"atol": 0.01, "rtol": 0.0, "accuracy_policy": accuracy_policy or {}},
         artifacts=[ArtifactRef(name="candidate_output", path=output, kind="candidate_output")],
         evidence=HardwareEvidence(backend=backend, probe_status="available", fingerprint=backend.value),
     )
@@ -49,3 +49,33 @@ def test_npu_fails_when_its_cpu_error_exceeds_gpu_baseline(tmp_path):
 
     assert gate.status == ResultStatus.FAILED
     assert gate.metrics["failure_kind"] == "npu_exceeds_gpu_baseline"
+
+
+def test_quantized_gate_records_all_required_metrics_and_small_value_count(tmp_path):
+    policy = {
+        "category": "quantized",
+        "small_value_threshold": 0.1,
+        "thresholds": {"ae": 0.02, "mare": 1.0, "mere": 1.0, "rmse": 0.02, "small_value_error_count": 0},
+    }
+    cpu = _result(tmp_path, BackendKind.CPU, [0.01, 1.0], "cpu", policy)
+    gpu = _result(tmp_path, BackendKind.GPU, [0.02, 1.01], "gpu", policy)
+    npu = _result(tmp_path, BackendKind.NPU, [0.015, 1.005], "npu", policy)
+
+    results = CrossDeviceComparator(tmp_path).compare([cpu, gpu, npu])
+    gate = next(result for result in results if result.metrics["stage"] == "cpu_npu_gpu_accuracy_gate")
+
+    assert gate.status == ResultStatus.PASSED
+    assert {"ae", "mare", "mere", "rmse", "small_value_error_count"} <= set(gate.metrics["npu_metrics"])
+
+
+def test_integer_gate_requires_bitwise_match(tmp_path):
+    policy = {"category": "integer"}
+    cpu = _result(tmp_path, BackendKind.CPU, [1, 2], "cpu", policy)
+    gpu = _result(tmp_path, BackendKind.GPU, [1, 2], "gpu", policy)
+    npu = _result(tmp_path, BackendKind.NPU, [1, 3], "npu", policy)
+
+    results = CrossDeviceComparator(tmp_path).compare([cpu, gpu, npu])
+    gate = next(result for result in results if result.metrics["stage"] == "cpu_npu_gpu_accuracy_gate")
+
+    assert gate.status == ResultStatus.FAILED
+    assert "bitwise_match" in gate.metrics["failed_metrics"]

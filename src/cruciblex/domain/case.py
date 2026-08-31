@@ -58,6 +58,7 @@ class OracleSpec(BaseModel):
     reference_executor: str | None = None
     expected_error: str | None = None
     tolerance: dict[str, Any] = Field(default_factory=dict)
+    accuracy_policy: dict[str, Any] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
