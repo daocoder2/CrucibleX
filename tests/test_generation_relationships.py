@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from cruciblex.domain.case import (
     CaseSpec,
@@ -59,6 +60,20 @@ def test_transpose_relationship_rejects_invalid_axes_without_mutating_shape():
     expanded = expand_cases([case])[0]
 
     assert expanded.parameters[1].shape.dims == [5, 6, 7]
+
+
+def test_exact_values_are_generated_and_shape_mismatch_is_rejected():
+    parameter = _parameter("input", [2, 2]).model_copy(update={"values": [[1, 2], [3, 4]]})
+    generator = DefaultInputGenerator()
+
+    values = generator._generate_parameter(parameter)
+
+    assert values.dtype == np.float32
+    np.testing.assert_array_equal(values, np.asarray([[1, 2], [3, 4]], dtype=np.float32))
+
+    invalid = parameter.model_copy(update={"values": [[1, 2, 3]]})
+    with pytest.raises(ValueError, match="exact values shape"):
+        generator._generate_parameter(invalid)
 
 
 def test_dtype_value_enum_and_optional_policies():

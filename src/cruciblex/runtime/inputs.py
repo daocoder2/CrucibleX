@@ -8,6 +8,21 @@ from cruciblex.runtime.pipeline import ExecutionPipeline
 from cruciblex.storage.artifacts import ArtifactStore
 
 
+def _input_sources(plan: ExecutionPlan) -> list[dict[str, object]]:
+    sources = []
+    for parameter in plan.case.parameters:
+        if parameter.values is not None:
+            source = "exact_values"
+        elif parameter.metadata.get("value_policy") is not None:
+            source = "value_policy"
+        elif parameter.value_range.valid or parameter.value_range.invalid:
+            source = "value_range"
+        else:
+            source = "default"
+        sources.append({"parameter": parameter.name, "source": source})
+    return sources
+
+
 @dataclass(frozen=True, slots=True)
 class InputBundle:
     inputs: list[object]
@@ -34,7 +49,7 @@ class DriverInputMaterializer:
             name="inputs",
             path=path,
             kind="inputs",
-            metadata={"role": "input", "scope": "case"},
+            metadata={"role": "input", "scope": "case", "sources": _input_sources(plan)},
         )
         bundle = InputBundle(inputs=inputs, artifacts=[artifact])
         self._cache[key] = bundle

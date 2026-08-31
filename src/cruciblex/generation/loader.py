@@ -106,6 +106,9 @@ def _parse_node(data: dict[str, Any]) -> NodeSpec:
 
 
 def _parse_parameter(data: dict[str, Any]) -> ParameterSpec:
+    unsupported = set(data) - {"name", "kind", "required", "dtypes", "shape", "values", "value_range", "requires_grad", "metadata"}
+    if unsupported:
+        raise ValueError(f"unsupported parameter fields: {', '.join(sorted(unsupported))}")
     kind = data.get("kind")
     if kind is None:
         raise ValueError("parameter kind is required")
@@ -118,6 +121,7 @@ def _parse_parameter(data: dict[str, Any]) -> ParameterSpec:
         required=data.get("required", True),
         dtypes=list(data.get("dtypes", [])),
         shape=shape,
+        values=data.get("values"),
         value_range=ValueRange.model_validate(value_range_data),
         requires_grad=data.get("requires_grad", False),
         metadata=data.get("metadata", {}),

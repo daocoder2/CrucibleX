@@ -2057,7 +2057,11 @@ def test_driver_input_materializer_reuses_case_inputs(tmp_path):
 
     assert first is second
     assert first.artifacts[0].path == tmp_path / case.name / "inputs.json"
-    assert first.artifacts[0].metadata == {"role": "input", "scope": "case"}
+    assert first.artifacts[0].metadata == {
+        "role": "input",
+        "scope": "case",
+        "sources": [{"parameter": "input", "source": "value_range"}],
+    }
     assert json.loads(first.artifacts[0].path.read_text(encoding="utf-8"))[0]["shape"] == [4]
 
 

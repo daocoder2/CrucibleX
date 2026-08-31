@@ -15,6 +15,8 @@ class DefaultInputGenerator(InputGenerator):
         return values
 
     def _generate_parameter(self, parameter: ParameterSpec) -> object:
+        if parameter.values is not None:
+            return self._generate_exact_values(parameter)
         if parameter.kind == ParameterKind.TENSOR:
             return self._generate_tensor(parameter)
         if parameter.kind == ParameterKind.TENSOR_LIST:
@@ -34,6 +36,30 @@ class DefaultInputGenerator(InputGenerator):
         if parameter.kind == ParameterKind.ATTRIBUTE_TUPLE:
             return self._generate_collection(parameter, self._generate_attribute, tuple_result=True)
         raise ValueError(f"unsupported parameter kind: {parameter.kind}")
+
+    def _generate_exact_values(self, parameter: ParameterSpec) -> object:
+        if parameter.kind == ParameterKind.TENSOR:
+            value = np.asarray(parameter.values, dtype=self._dtype(parameter))
+            expected_shape = self._shape(parameter)
+            if tuple(value.shape) != expected_shape:
+                raise ValueError(f"exact values shape {list(value.shape)} does not match parameter {parameter.name} shape {list(expected_shape)}")
+            return value
+        if parameter.kind == ParameterKind.SCALAR:
+            dtype = self._dtype(parameter)
+            return dtype.type(parameter.values) if hasattr(dtype, "type") else parameter.values
+        if parameter.kind == ParameterKind.ATTRIBUTE:
+            return parameter.values
+        if parameter.kind in {ParameterKind.TENSOR_LIST, ParameterKind.TENSOR_TUPLE}:
+            if not isinstance(parameter.values, (list, tuple)):
+                raise ValueError(f"exact values for {parameter.kind.value} must be a list or tuple")
+            item_kind = ParameterKind.TENSOR
+            values = [self._generate_exact_values(parameter.model_copy(update={"kind": item_kind, "values": value})) for value in parameter.values]
+            return tuple(values) if parameter.kind == ParameterKind.TENSOR_TUPLE else values
+        if parameter.kind in {ParameterKind.SCALAR_LIST, ParameterKind.SCALAR_TUPLE, ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE}:
+            if not isinstance(parameter.values, (list, tuple)):
+                raise ValueError(f"exact values for {parameter.kind.value} must be a list or tuple")
+            return tuple(parameter.values) if parameter.kind in {ParameterKind.SCALAR_TUPLE, ParameterKind.ATTRIBUTE_TUPLE} else list(parameter.values)
+        raise ValueError(f"exact values are unsupported for parameter kind: {parameter.kind}")
 
     def _generate_collection(self, parameter: ParameterSpec, generator, tuple_result: bool) -> object:
         items = parameter.metadata.get("items")
@@ -59,6 +85,7 @@ class DefaultInputGenerator(InputGenerator):
             required=bool(item.get("required", parameter.required)),
             dtypes=list(item.get("dtypes", parameter.dtypes)),
             shape=ShapeSpec.model_validate(item["shape"]) if item.get("shape") is not None else parameter.shape,
+            values=item.get("values", parameter.values),
             value_range=ValueRange.model_validate(item.get("value_range") or parameter.value_range.model_dump(mode="json")),
             requires_grad=bool(item.get("requires_grad", parameter.requires_grad)),
             metadata=metadata,

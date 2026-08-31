@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 import numpy as np
+import pytest
 
 from cruciblex.domain import (
     CaseSpec,
@@ -12,7 +15,9 @@ from cruciblex.domain.enums import ExecutionRole
 from cruciblex.generation.expand import expand_cases
 from cruciblex.generation.loader import load_cases
 from cruciblex.plugins.executors.numpy import NumpyFunctionExecutor
+from cruciblex.plugins.generators.default import DefaultInputGenerator
 from cruciblex.runtime.executors.base import ExecutionRequest
+from cruciblex.runtime.generation import GenerationRequest
 
 
 def _request(binding: InvocationBindingSpec | None = None, metadata: dict | None = None) -> ExecutionRequest:
@@ -73,19 +78,34 @@ def test_reduction_example_declares_typed_keyword_binding():
     assert case.invocation.binding == InvocationBindingSpec(mode="keyword", names=["a", "axis"])
 
 
-def test_mean_example_declares_binding_and_executes_numpy_reduction():
+def test_mean_example_preserves_exact_values_and_executes_numpy_reduction():
     case = expand_cases(load_cases("examples/cases/numpy.mean.yaml"))[0]
     request = ExecutionRequest(
         case=case,
-        inputs=[np.asarray([[3, 1, 4, 2], [8, 6, 7, 5]], dtype=np.float32), 1],
+        inputs=[],
         plan=None,
         role=ExecutionRole.CANDIDATE,
     )
 
+    inputs = DefaultInputGenerator().generate(GenerationRequest(case=case, plan=None))
+    request = replace(request, inputs=inputs)
     output = NumpyFunctionExecutor().execute(request)
 
+    assert case.parameters[0].values == [[3.0, 1.0, 4.0, 2.0], [8.0, 6.0, 7.0, 5.0]]
+    np.testing.assert_array_equal(inputs[0], np.asarray(case.parameters[0].values, dtype=np.float32))
     assert case.invocation.binding == InvocationBindingSpec(mode="keyword", names=["a", "axis"])
     np.testing.assert_array_equal(output, np.asarray([2.5, 6.5], dtype=np.float32))
+
+
+def test_parameter_parser_rejects_unknown_input_fields(tmp_path):
+    path = tmp_path / "invalid.yaml"
+    path.write_text(
+        "cases:\n  - id: 99\n    operator: {name: numpy.sum}\n    invocation: {api: numpy.sum, api_type: function}\n    parameters: [{name: input, kind: tensor, valuse: [1]}]\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unsupported parameter fields: valuse"):
+        load_cases(path)
 
 
 def test_broadcast_example_resolves_shapes_and_executes_numpy_add():

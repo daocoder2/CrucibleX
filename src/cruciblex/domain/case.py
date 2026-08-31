@@ -25,6 +25,7 @@ class ParameterSpec(BaseModel):
     required: bool = True
     dtypes: list[str] = Field(default_factory=list)
     shape: ShapeSpec | None = None
+    values: Any | None = None
     value_range: ValueRange = Field(default_factory=ValueRange)
     requires_grad: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
