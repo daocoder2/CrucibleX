@@ -19,6 +19,7 @@ RUN uv pip install --system --no-cache-dir --index-url https://download.pytorch.
 COPY src ./src
 COPY examples ./examples
 COPY docs ./docs
+COPY scripts ./scripts
 RUN uv pip install --system --no-cache-dir --index-url ${UV_INDEX_URL} . \
  && chmod -R a+rX /home/ray/cruciblex
 
