@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from cruciblex.domain.plan import ExecutionPlan
 from cruciblex.domain.result import ArtifactRef
+from cruciblex.generation.dtypes import dtype_contract
 from cruciblex.runtime.pipeline import ExecutionPipeline
 from cruciblex.storage.artifacts import ArtifactStore
 
@@ -68,6 +69,7 @@ class DriverInputMaterializer:
                 "generator": plan.case.generator,
                 "seed": plan.case.generation.seed,
                 "sources": _input_sources(plan),
+                "dtype_contracts": [dtype_contract(str(parameter.dtypes[0] if parameter.dtypes else "fp32")) for parameter in plan.case.parameters],
             },
         )
         bundle = InputBundle(inputs=inputs, artifacts=[artifact])

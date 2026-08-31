@@ -4,6 +4,7 @@ import numpy as np
 
 from cruciblex.domain.case import ParameterSpec, ShapeSpec, ValueRange
 from cruciblex.domain.enums import ParameterKind
+from cruciblex.generation.dtypes import quantize_bf16_reference, validate_value_policy
 from cruciblex.runtime.generation import GENERATOR_REGISTRY, GenerationRequest, InputGenerator
 
 
@@ -43,7 +44,7 @@ class DefaultInputGenerator(InputGenerator):
             expected_shape = self._shape(parameter)
             if tuple(value.shape) != expected_shape:
                 raise ValueError(f"exact values shape {list(value.shape)} does not match parameter {parameter.name} shape {list(expected_shape)}")
-            return value
+            return self._apply_dtype_contract(value, parameter)
         if parameter.kind == ParameterKind.SCALAR:
             dtype = self._dtype(parameter)
             return dtype.type(parameter.values) if hasattr(dtype, "type") else parameter.values
@@ -131,6 +132,11 @@ class DefaultInputGenerator(InputGenerator):
 
     def _generate_tensor(self, parameter: ParameterSpec):
         dtype = self._dtype(parameter)
+        policy = parameter.metadata.get("value_policy")
+        if isinstance(policy, dict):
+            validation = validate_value_policy(policy, self._declared_dtype(parameter))
+            if validation["rejected"]:
+                raise ValueError(f"{validation['rejected']}: {validation['requested']} for {self._declared_dtype(parameter)}")
         shape = self._shape(parameter)
         policy_value = self._policy_value(parameter, dtype)
         if policy_value is not None:
@@ -151,7 +157,7 @@ class DefaultInputGenerator(InputGenerator):
     def _apply_layout_policy(self, value, parameter: ParameterSpec):
         policy = parameter.metadata.get("shape_policy")
         if not isinstance(policy, dict) or not isinstance(value, np.ndarray):
-            return value
+            return self._apply_dtype_contract(value, parameter)
         storage_shape = policy.get("storage_shape")
         if isinstance(storage_shape, list) and policy.get("strides") is None and all(isinstance(dim, int) and dim >= 0 for dim in storage_shape):
             storage = np.zeros(tuple(storage_shape), dtype=value.dtype)
@@ -183,7 +189,7 @@ class DefaultInputGenerator(InputGenerator):
             if value.ndim < 2:
                 raise ValueError("non_contiguous shape_policy requires rank at least 2")
             value = np.swapaxes(value, -1, -2)
-        return value
+        return self._apply_dtype_contract(value, parameter)
 
     def _matrix_profile(self, parameter: ParameterSpec, shape: list[int], dtype):
         policy = parameter.metadata.get("value_policy")
@@ -383,6 +389,14 @@ class DefaultInputGenerator(InputGenerator):
                 value = float(first)
                 return value, value
         return (-1.0, 1.0)
+
+    def _declared_dtype(self, parameter: ParameterSpec) -> str:
+        return str(parameter.dtypes[0] if parameter.dtypes else "fp32").lower()
+
+    def _apply_dtype_contract(self, value, parameter: ParameterSpec):
+        if self._declared_dtype(parameter) == "bf16":
+            return quantize_bf16_reference(value)
+        return value
 
     def _dtype(self, parameter: ParameterSpec):
         name = parameter.dtypes[0] if parameter.dtypes else "fp32"

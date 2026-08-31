@@ -25,6 +25,7 @@ class TorchFunctionExecutor(BackendExecutor):
         positional, keywords = request.call_arguments(torch_inputs)
         with torch.no_grad():
             output = target(*positional, **keywords)
+        self.last_execution_evidence = self._device_output_evidence(output)
         return self._to_numpy(output)
 
     def _torch(self):
@@ -74,6 +75,20 @@ class TorchFunctionExecutor(BackendExecutor):
         is_available = getattr(npu, "is_available", None)
         if callable(is_available) and not is_available():
             raise ExecutionNotSupportedError(f"torch device is unavailable: {device}")
+
+    def _device_output_evidence(self, value: object) -> dict[str, object]:
+        if isinstance(value, (list, tuple)):
+            values = [self._device_output_evidence(item) for item in value]
+            return {
+                "backend_output_dtype": [item.get("backend_output_dtype") for item in values],
+                "backend_output_device": [item.get("backend_output_device") for item in values],
+                "backend_dtype_source": "device_tensor",
+            }
+        return {
+            "backend_output_dtype": str(getattr(value, "dtype", "unknown")),
+            "backend_output_device": str(getattr(value, "device", "unknown")),
+            "backend_dtype_source": "device_tensor",
+        }
 
     def _to_numpy(self, value: object) -> object:
         try:

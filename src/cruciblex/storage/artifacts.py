@@ -30,8 +30,9 @@ class ArtifactStore:
         data: Any,
         kind: str,
         role: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ArtifactPayload:
-        metadata = {"role": role} if role else {}
+        metadata = {**(metadata or {}), **({"role": role} if role else {})}
         return ArtifactPayload(name=name, kind=kind, data=data, metadata=metadata)
 
     def write_payload(self, plan: ExecutionPlan, payload: ArtifactPayload) -> ArtifactRef:
@@ -77,8 +78,9 @@ class ArtifactRecorder:
         data: Any,
         kind: str,
         role: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
-        payload = self.store.payload_json(name, data, kind, role)
+        payload = self.store.payload_json(name, data, kind, role, metadata)
         if self.persist:
             self.artifacts.append(self.store.write_payload(self.plan, payload))
         else:

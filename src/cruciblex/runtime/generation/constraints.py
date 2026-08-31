@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from cruciblex.domain.case import CaseSpec, ParameterSpec, ShapeSpec
 from cruciblex.domain.enums import ParameterKind
+from cruciblex.generation.dtypes import validate_value_policy
 from cruciblex.generation.policies import merge_facts, operator_facts, resolve_policy
 
 
@@ -69,8 +70,46 @@ class LinkedParametersConstraint(ConstraintPlugin):
                 if source is not None and source.shape is not None:
                     metadata.setdefault("resolved_shape_from", str(shape_source))
                     parameter = parameter.model_copy(update={"shape": source.shape, "metadata": metadata})
+            collection_relation = metadata.get("collection_relationship")
+            if isinstance(collection_relation, dict):
+                source = parameter_map.get(str(collection_relation.get("source")))
+                resolved = _resolve_collection_relationship(parameter, source, collection_relation)
+                if resolved:
+                    metadata.update(resolved)
+                    metadata["resolved_collection_relationship"] = str(collection_relation.get("kind"))
+                    parameter = parameter.model_copy(update={"metadata": metadata})
             updated.append(parameter)
+            if parameter.name:
+                parameter_map[parameter.name] = parameter
         return case.model_copy(update={"parameters": updated})
+
+
+def _resolve_collection_relationship(parameter: ParameterSpec, source: ParameterSpec | None, relation: dict[str, object]) -> dict[str, object]:
+    if source is None:
+        return {}
+    kind = relation.get("kind")
+    source_metadata = source.metadata
+    source_items = source_metadata.get("items")
+    if kind == "same_length_as":
+        if isinstance(source_items, list):
+            return {"length": len(source_items)}
+        for key in ("length", "list_length", "tuple_length", "item_count"):
+            if isinstance(source_metadata.get(key), int):
+                return {"length": int(source_metadata[key])}
+        return {}
+    if kind == "same_item_dtype_as":
+        dtypes = source_metadata.get("item_dtypes")
+        if isinstance(dtypes, list) and dtypes:
+            return {"item_dtypes": list(dtypes)}
+        if source.dtypes:
+            return {"item_dtypes": list(source.dtypes)}
+    if kind == "same_item_shape_as":
+        shapes = source_metadata.get("item_shapes")
+        if isinstance(shapes, list) and shapes:
+            return {"item_shapes": list(shapes)}
+        if source.shape is not None and source.shape.dims is not None:
+            return {"item_shapes": [list(source.shape.dims)]}
+    return {}
 
 
 class ShapeRelationshipsConstraint(ConstraintPlugin):
@@ -237,6 +276,11 @@ class ValuePolicyConstraint(ConstraintPlugin):
         metadata = dict(parameter.metadata)
         kind = str(policy.get("kind", ""))
         dtype = str(parameter.dtypes[0]) if parameter.dtypes else ""
+        validation = validate_value_policy(policy, dtype)
+        metadata["value_policy_validation"] = validation
+        if validation["rejected"]:
+            metadata["resolved_value_policy"] = validation["rejected"]
+            return parameter.model_copy(update={"metadata": metadata})
         if kind in {"nan", "inf"} and not dtype.startswith(("fp", "float", "bf16")):
             metadata["resolved_value_policy"] = "filtered_non_floating_dtype"
         elif kind in {"uniform", "normal", "sparsity"}:

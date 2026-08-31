@@ -11,6 +11,7 @@ from cruciblex.domain.case import InvocationSpec
 from cruciblex.domain.enums import BackendKind, ExecutionRole, ResultStatus, TaskKind
 from cruciblex.domain.plan import ExecutionPlan
 from cruciblex.domain.result import ExecutionResult, HardwareEvidence
+from cruciblex.generation.dtypes import dtype_contract
 from cruciblex.runtime.backends.base import DeviceContext
 from cruciblex.runtime.compare import COMPARATOR_REGISTRY, ComparisonRequest
 from cruciblex.runtime.executors import (
@@ -81,7 +82,12 @@ class ExecutionPipeline:
                 return self._skip_result(plan, recorder, "generate", str(exc))
             except Exception as exc:  # noqa: BLE001 - generation failures map to ExecutionResult.ERROR
                 return self._error_result(plan, recorder, "generate", exc)
-            recorder.record_json("inputs", self._serialize_inputs(inputs), "inputs")
+            recorder.record_json(
+                "inputs",
+                self._serialize_inputs(inputs),
+                "inputs",
+                metadata={"dtype_contracts": self._input_dtype_contracts(plan)},
+            )
 
         profiler = plan.case.invocation.metadata.get("profiler")
         if isinstance(profiler, dict):
@@ -162,16 +168,22 @@ class ExecutionPipeline:
             self._serialize_value(candidate_output),
             "candidate_output",
             role=ExecutionRole.CANDIDATE.value,
+            metadata={"dtype": self._dtype_of(candidate_output)},
         )
         metrics = {
             "input_count": len(inputs),
             "output_shape": self._shape_of(candidate_output),
+            "input_dtype_contracts": self._input_dtype_contracts(plan),
+            "candidate_output_dtype": self._dtype_of(candidate_output),
             "duration_ms": duration_ms,
             "candidate_executor": candidate_executor_name,
             **({"runtime_policy": runtime_policy} if runtime_policy else {}),
         }
         if context is not None:
             metrics.update(self._context_metrics(context, candidate_executor_name))
+        executor_evidence = getattr(candidate_executor, "last_execution_evidence", None)
+        if isinstance(executor_evidence, dict):
+            metrics.update(executor_evidence)
         if hardware_metrics:
             metrics.update(hardware_metrics)
 
@@ -227,7 +239,9 @@ class ExecutionPipeline:
                         self._serialize_value(reference_output),
                         "reference_output",
                         role=ExecutionRole.REFERENCE.value,
+                        metadata={"dtype": self._dtype_of(reference_output)},
                     )
+                    metrics["reference_output_dtype"] = self._dtype_of(reference_output)
                     report = COMPARATOR_REGISTRY.resolve(plan.case.oracle.comparison).compare(
                         ComparisonRequest(
                             expected=reference_output,
@@ -703,6 +717,18 @@ class ExecutionPipeline:
         mean = float(np.mean(values))
         items = float(benchmark["throughput_items_per_call"])
         return {"latency_ms": mean, "latency_mean_ms": mean, "latency_min_ms": float(np.min(values)), "latency_stddev_ms": float(np.std(values)), "latency_p50_ms": float(np.percentile(values, 50)), "latency_p90_ms": float(np.percentile(values, 90)), "latency_p95_ms": float(np.percentile(values, 95)), "latency_p99_ms": float(np.percentile(values, 99)), "throughput_items_per_s": items * 1000.0 / mean if mean else 0.0, "warmup_count": int(benchmark["warmup"]), "repeat_count": int(benchmark["repeat"]), "sample_count": len(samples_ms), "min_time_ms": float(benchmark["min_time_ms"]), "effective_duration_ms": duration_ms}
+
+    def _input_dtype_contracts(self, plan: ExecutionPlan) -> list[dict[str, str]]:
+        return [dtype_contract(str(parameter.dtypes[0] if parameter.dtypes else "fp32")) for parameter in plan.case.parameters]
+
+    def _dtype_of(self, value: object) -> str | list[str] | None:
+        if isinstance(value, np.ndarray):
+            return str(value.dtype)
+        if isinstance(value, np.generic):
+            return str(value.dtype)
+        if isinstance(value, (list, tuple)):
+            return [dtype for item in value for dtype in [self._dtype_of(item)] if dtype is not None]
+        return None
 
     def _serialize_inputs(self, inputs: list[object]) -> list[Any]:
         return [self._serialize_value(item) for item in inputs]

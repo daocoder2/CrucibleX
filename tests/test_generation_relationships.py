@@ -301,3 +301,62 @@ def test_builtin_matmul_facts_alias_inner_dimensions():
     assert expanded.parameters[0].dtypes == ["fp32"]
     assert expanded.parameters[1].shape.dims == [3, 4]
     assert expanded.parameters[1].metadata["resolved_shape_relationship"] == "dimension_alias"
+
+
+def test_bf16_reference_quantizes_and_special_policy_records_rejection():
+    generator = DefaultInputGenerator()
+    bf16 = _parameter("bf16", [2]).model_copy(update={"dtypes": ["bf16"], "values": [1.00390625, 1.01171875]})
+    value = generator._generate_parameter(bf16)
+
+    assert value.dtype == np.float32
+    assert value.tolist() == [1.0, 1.015625]
+
+    invalid = _parameter("invalid", [1]).model_copy(update={"dtypes": ["int32"], "metadata": {"value_policy": {"kind": "boundary_set", "values": ["nan"]}}})
+    case = CaseSpec(
+        id=732,
+        operator=OperatorSpec(name="invalid-special"),
+        invocation=InvocationSpec(api="numpy.add", api_type="function"),
+        generation=GenerationSpec(constraints=["value_policy"]),
+        parameters=[invalid],
+    )
+    expanded = expand_cases([case])[0]
+
+    assert expanded.parameters[0].metadata["value_policy_validation"]["rejected"] == "unsupported_policy_for_dtype"
+    with pytest.raises(ValueError, match="unsupported_policy_for_dtype"):
+        generator._generate_parameter(expanded.parameters[0])
+
+
+def test_collection_relationships_link_length_dtype_and_shape():
+    source = ParameterSpec(
+        name="left",
+        kind=ParameterKind.TENSOR_LIST,
+        dtypes=["fp16"],
+        shape=ShapeSpec(dims=[2, 3]),
+        metadata={"length": 3},
+    )
+    target = ParameterSpec(
+        name="right",
+        kind=ParameterKind.TENSOR_LIST,
+        dtypes=["fp32"],
+        shape=ShapeSpec(dims=[1]),
+        metadata={"collection_relationship": {"kind": "same_length_as", "source": "left"}},
+    )
+    dtype_target = target.model_copy(update={"name": "dtype_right", "metadata": {"collection_relationship": {"kind": "same_item_dtype_as", "source": "left"}}})
+    shape_target = target.model_copy(update={"name": "shape_right", "metadata": {"collection_relationship": {"kind": "same_item_shape_as", "source": "left"}}})
+    case = CaseSpec(
+        id=733,
+        operator=OperatorSpec(name="collection-link"),
+        invocation=InvocationSpec(api="numpy.add", api_type="function"),
+        generation=GenerationSpec(constraints=["linked_parameters"]),
+        parameters=[source, target, dtype_target, shape_target],
+    )
+
+    expanded = expand_cases([case])[0]
+    generator = DefaultInputGenerator()
+    values = generator._generate_parameter(expanded.parameters[1])
+    shape_values = generator._generate_parameter(expanded.parameters[3])
+
+    assert len(values) == 3
+    assert expanded.parameters[2].metadata["item_dtypes"] == ["fp16"]
+    assert expanded.parameters[3].metadata["item_shapes"] == [[2, 3]]
+    assert all(value.shape == (2, 3) for value in shape_values)

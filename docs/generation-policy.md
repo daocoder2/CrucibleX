@@ -95,3 +95,29 @@ shape_policy:
 - `torch.softmax`：floating dtype 与 signed exponential values。
 
 也可以通过 `generation.metadata.operator_fact_library` 指定一个或多个库名。当前内置 facts 不自动声明 invocation binding、attributes、outputs 或 backend 支持能力；这些仍属于 Case、executor 与 Node 契约。
+
+## Dtype Evidence
+
+`bf16` 的 reference input 使用 fp32 存储，但先执行 IEEE bfloat16 round-to-nearest-even 量化。input artifact metadata 记录每个参数的 `declared_dtype`、`reference_dtype` 与 `quantization`，例如 `bf16/fp32/bfloat16_rne`。
+
+pipeline 同时记录 `candidate_output_dtype` 与 `reference_output_dtype`。Torch/ACLNN executor 在 device tensor 转 NumPy 前额外记录 `backend_output_dtype`、`backend_output_device` 和 `backend_dtype_source: device_tensor`；前两者不能互相替代。
+
+## Special Value Validation
+
+value policy 会写入 `value_policy_validation`，包含 requested/effective/rejected。不可用于目标 dtype 的 NaN、Inf、subnormal 或 complex-only policy 会保留明确 rejected 原因，generator 随后拒绝生成该输入，避免静默转换为伪合法值。
+
+## Collection Relationships
+
+在 `linked_parameters` constraint 中，collection 参数可声明 `collection_relationship`：
+
+```yaml
+collection_relationship:
+  kind: same_length_as # 或 same_item_dtype_as / same_item_shape_as
+  source: inputs
+```
+
+- `same_length_as` 从 source 的 `items` 或 `length` 元数据派生目标长度。
+- `same_item_dtype_as` 复用 source 的 `item_dtypes` 或参数 dtype。
+- `same_item_shape_as` 复用 source 的 `item_shapes` 或参数 shape。
+
+关系结果会记录在 `resolved_collection_relationship`，并继续由 default generator 使用既有 `length`、`item_dtypes` 与 `item_shapes` metadata 生成实际元素。

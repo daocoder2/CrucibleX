@@ -2065,6 +2065,7 @@ def test_driver_input_materializer_reuses_case_inputs(tmp_path):
         "generator": "default",
         "seed": 0,
         "sources": [{"parameter": "input", "source": "value_range", "spec_fingerprint": first.artifacts[0].metadata["sources"][0]["spec_fingerprint"]}],
+        "dtype_contracts": [{"declared_dtype": "fp32", "reference_dtype": "fp32", "quantization": "none"}],
     }
     assert json.loads(first.artifacts[0].path.read_text(encoding="utf-8"))[0]["shape"] == [4]
 

@@ -228,6 +228,11 @@ class AclnnRuntime:
             ret = run_func(ctypes.c_void_p(workspace or 0), workspace_size.value, executor, stream)
             self._check_status(ret, spec.symbol)
             torch.npu.synchronize()
+            self.last_execution_evidence = {
+                "backend_output_dtype": [str(output.dtype) for output in device_outputs],
+                "backend_output_device": [str(output.device) for output in device_outputs],
+                "backend_dtype_source": "device_tensor",
+            }
             outputs = [output.detach().cpu().numpy() for output in device_outputs]
             return outputs[0] if len(outputs) == 1 else outputs
         finally:

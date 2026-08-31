@@ -16,7 +16,11 @@ from cruciblex.runtime.executors.base import (
 class AclnnFunctionExecutor(BackendExecutor):
     def execute(self, request: ExecutionRequest) -> object:
         if ACLNN_ADAPTER_REGISTRY.supports(request.case.invocation.api_type):
-            return ACLNN_ADAPTER_REGISTRY.resolve(request.case.invocation.api_type).execute(request)
+            adapter = ACLNN_ADAPTER_REGISTRY.resolve(request.case.invocation.api_type)
+            output = adapter.execute(request)
+            runtime = getattr(adapter, "runtime", None)
+            self.last_execution_evidence = dict(getattr(runtime, "last_execution_evidence", {}))
+            return output
         target = self._resolve_api(request.case.invocation.api)
         positional, keywords = request.call_arguments(request.inputs)
         return self._to_numpy(target(*positional, **keywords))
