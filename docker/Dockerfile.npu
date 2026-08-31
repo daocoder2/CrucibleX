@@ -19,6 +19,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY examples ./examples
 COPY docs ./docs
+COPY scripts ./scripts
 
 RUN python3 -m pip install --no-cache-dir --upgrade -i ${UV_INDEX_URL} uv
 
