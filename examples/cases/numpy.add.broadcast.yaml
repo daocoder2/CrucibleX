@@ -1,0 +1,38 @@
+# Deterministic NumPy broadcast baseline: [2, 3, 4] + [1, 3, 1].
+cases:
+  - id: 22
+    operator:
+      name: numpy.add.broadcast
+    invocation:
+      api: numpy.add
+      api_type: function
+      executor: numpy
+      binding:
+        mode: positional
+    oracle:
+      comparison: allclose
+    generator: default
+    generation:
+      seed: 22
+      constraints: [shape_relationships]
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [2, 3, 4]
+        metadata:
+          value_policy:
+            kind: one
+      - name: other
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [1, 3, 1]
+        metadata:
+          shape_relationship:
+            kind: broadcastable_with
+            source: input
+          value_policy:
+            kind: constant
+            value: 2

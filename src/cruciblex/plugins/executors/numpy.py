@@ -26,6 +26,7 @@ _EXECUTORS: dict[str, Callable[[list[object], dict[str, object]], object]] = {
     "torch.abs": lambda args, kwargs: np.abs(_require_one(args)),
     "abs": lambda args, kwargs: np.abs(_require_one(args)),
     "torch.add": lambda args, kwargs: np.add(_require_one(args, 0), _require_one(args, 1)),
+    "numpy.add": lambda args, kwargs: np.add(_require_one(args, 0), _require_one(args, 1)),
     "numpy.sum": lambda args, kwargs: np.sum(*args, **kwargs),
     "sum": lambda args, kwargs: np.sum(*args, **kwargs),
 }

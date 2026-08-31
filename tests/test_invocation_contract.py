@@ -9,6 +9,7 @@ from cruciblex.domain import (
     ParameterSpec,
 )
 from cruciblex.domain.enums import ExecutionRole
+from cruciblex.generation.expand import expand_cases
 from cruciblex.generation.loader import load_cases
 from cruciblex.plugins.executors.numpy import NumpyFunctionExecutor
 from cruciblex.runtime.executors.base import ExecutionRequest
@@ -70,3 +71,19 @@ def test_reduction_example_declares_typed_keyword_binding():
     case = load_cases("examples/cases/numpy.sum.yaml")[0]
 
     assert case.invocation.binding == InvocationBindingSpec(mode="keyword", names=["a", "axis"])
+
+
+def test_broadcast_example_resolves_shapes_and_executes_numpy_add():
+    case = expand_cases(load_cases("examples/cases/numpy.add.broadcast.yaml"))[0]
+    request = ExecutionRequest(
+        case=case,
+        inputs=[np.ones((2, 3, 4), dtype=np.float32), np.full((1, 3, 1), 2, dtype=np.float32)],
+        plan=None,
+        role=ExecutionRole.CANDIDATE,
+    )
+
+    output = NumpyFunctionExecutor().execute(request)
+
+    assert [parameter.shape.dims for parameter in case.parameters] == [[2, 3, 4], [1, 3, 1]]
+    assert case.parameters[1].metadata["resolved_shape_relationship"] == "broadcastable_with"
+    np.testing.assert_array_equal(output, np.full((2, 3, 4), 3, dtype=np.float32))

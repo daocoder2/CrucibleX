@@ -26,4 +26,4 @@ invocation:
 
 ## 代表性示例
 
-`examples/cases/numpy.sum.yaml` 演示 reduction 算子：Case 参数名为 `input`，通过 `names: [a, axis]` 映射到 NumPy API 的 `a` 与 `axis`。该示例使用 NumPy executor，可在本地 CPU 环境重放。
+`examples/cases/numpy.sum.yaml` 演示 reduction 算子：Case 参数名为 `input`，通过 `names: [a, axis]` 映射到 NumPy API 的 `a` 与 `axis`。`examples/cases/numpy.add.broadcast.yaml` 演示 binary broadcast：它以 positional binding 调用 `numpy.add`，并通过 `broadcastable_with` 校验第二个输入的 `[1, 3, 1]` shape。两个示例都使用 NumPy executor，可在本地 CPU 环境重放。
