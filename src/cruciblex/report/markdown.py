@@ -79,25 +79,22 @@ class MarkdownReportWriter:
             "## Failures",
         ]
         lines.extend(["", "## Hardware Evidence"])
-        gpu_results = [result for result in results if result.backend.value == "gpu"]
-        if not gpu_results:
+        evidence_results = [result for result in results if result.evidence is not None]
+        if not evidence_results:
             lines.append("- none")
         else:
-            for result in gpu_results:
-                metrics = result.metrics
-                evidence = next((artifact for artifact in result.artifacts if artifact.kind == "gpu_evidence"), None)
+            for result in evidence_results:
+                evidence = result.evidence
                 lines.extend([
                     f"- plan_id: {result.plan_id}",
                     f"  status: {result.status.value}",
-                    f"  device_id: {result.device_id}",
-                    f"  resolved_device: {metrics.get('resolved_device', '')}",
-                    f"  gpu_available: {metrics.get('gpu_available', '')}",
-                    f"  runtime_device_count: {metrics.get('gpu_device_count', '')}",
-                    f"  hardware_device_count: {metrics.get('gpu_hardware_device_count', '')}",
-                    f"  cuda_version: {metrics.get('cuda_version', '')}",
-                    f"  evidence_storage: {metrics.get('gpu_evidence_storage', '')}",
-                    f"  evidence_fingerprint: {metrics.get('gpu_evidence_fingerprint', '')}",
-                    f"  evidence_artifact: {evidence.path if evidence else ''}",
+                    f"  backend: {evidence.backend.value}",
+                    f"  device_id: {evidence.device_id}",
+                    f"  resolved_device: {evidence.resolved_device or ''}",
+                    f"  probe_status: {evidence.probe_status}",
+                    f"  runtime: {json.dumps(evidence.runtime, sort_keys=True)}",
+                    f"  evidence_fingerprint: {evidence.fingerprint or ''}",
+                    f"  evidence_artifacts: {', '.join(evidence.artifact_refs)}",
                 ])
         failures = [result for result in results if result.status.value != "passed"]
         if not failures:
