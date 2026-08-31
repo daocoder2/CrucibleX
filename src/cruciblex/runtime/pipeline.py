@@ -10,7 +10,7 @@ import numpy as np
 from cruciblex.domain.case import InvocationSpec
 from cruciblex.domain.enums import BackendKind, ExecutionRole, ResultStatus, TaskKind
 from cruciblex.domain.plan import ExecutionPlan
-from cruciblex.domain.result import ExecutionResult
+from cruciblex.domain.result import ExecutionResult, HardwareEvidence
 from cruciblex.runtime.backends.base import DeviceContext
 from cruciblex.runtime.compare import COMPARATOR_REGISTRY, ComparisonRequest
 from cruciblex.runtime.executors import (
@@ -386,6 +386,7 @@ class ExecutionPipeline:
             metrics=metrics,
             artifacts=list(recorder.artifacts),
             artifact_payloads=list(recorder.payloads),
+            evidence=self._hardware_evidence(plan, metrics),
             error=error,
         )
 
@@ -430,6 +431,30 @@ class ExecutionPipeline:
             },
             recorder,
             error_text,
+        )
+
+    def _hardware_evidence(self, plan: ExecutionPlan, metrics: dict[str, Any]) -> HardwareEvidence:
+        backend = plan.device.backend
+        probe_status = "unknown"
+        runtime: dict[str, Any] = {}
+        fingerprint = None
+        artifact_refs: list[str] = []
+        if backend == BackendKind.GPU:
+            probe_status = "available" if metrics.get("gpu_available") else "unavailable"
+            runtime = {key: metrics[key] for key in ("cuda_version", "gpu_device_count") if metrics.get(key) is not None}
+            fingerprint = metrics.get("gpu_evidence_fingerprint")
+            if metrics.get("gpu_evidence_path"):
+                artifact_refs.append(str(metrics["gpu_evidence_path"]))
+        return HardwareEvidence(
+            backend=backend,
+            host=metrics.get("host"),
+            node=metrics.get("node"),
+            device_id=metrics.get("device_id"),
+            resolved_device=metrics.get("resolved_device"),
+            probe_status=probe_status,
+            runtime=runtime,
+            fingerprint=fingerprint,
+            artifact_refs=artifact_refs,
         )
 
     def _failure_kind(self, plan: ExecutionPlan, stage: str, exc: Exception) -> str:

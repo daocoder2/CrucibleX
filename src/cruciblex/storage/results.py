@@ -52,6 +52,7 @@ class ResultStore:
             "status",
             "error",
             "metrics_json",
+            "evidence_json",
             "artifact_count",
         ]
         with path.open("w", encoding="utf-8", newline="") as handle:
@@ -85,5 +86,6 @@ class ResultStore:
             "status": result.status.value,
             "error": result.error or "",
             "metrics_json": json.dumps(result.metrics, ensure_ascii=False, sort_keys=True),
+            "evidence_json": json.dumps(result.evidence.model_dump(mode="json"), ensure_ascii=False, sort_keys=True) if result.evidence else "",
             "artifact_count": str(len(result.artifacts)),
         }

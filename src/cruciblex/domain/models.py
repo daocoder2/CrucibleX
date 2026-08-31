@@ -18,7 +18,7 @@ from cruciblex.domain.enums import (
 )
 from cruciblex.domain.node import DeviceSpec, NodeSpec
 from cruciblex.domain.plan import ArtifactPolicy, ExecutionPlan, JobSpec
-from cruciblex.domain.result import ArtifactPayload, ArtifactRef, ExecutionResult
+from cruciblex.domain.result import ArtifactPayload, ArtifactRef, ExecutionResult, HardwareEvidence
 from cruciblex.domain.run import RunContext, RunManifest
 
 __all__ = [
@@ -31,6 +31,7 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionResult",
     "ExecutionRole",
+    "HardwareEvidence",
     "InvocationBindingSpec",
     "InvocationSpec",
     "JobSpec",
