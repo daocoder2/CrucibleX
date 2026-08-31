@@ -10,7 +10,8 @@ ENV TZ=Asia/Shanghai \
     LC_ALL=C.UTF-8 \
     LANG=C.UTF-8 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    LD_LIBRARY_PATH=/usr/local/Ascend/ascend-toolkit/latest/aarch64-linux/devlib:${LD_LIBRARY_PATH}
 
 WORKDIR /opt/cruciblex
 
