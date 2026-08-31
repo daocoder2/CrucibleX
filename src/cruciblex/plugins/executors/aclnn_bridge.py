@@ -11,6 +11,19 @@ import numpy as np
 from cruciblex.runtime.executors import ExecutionNotSupportedError, ExecutionRequest
 
 ACL_FORMAT_ND = 2
+
+ACLNN_CAPABILITY_MATRIX = {
+    "tensor": {"status": "supported", "lifecycle": "aclCreateTensor/aclDestroyTensor"},
+    "scalar": {"status": "supported", "lifecycle": "aclCreateScalar/aclDestroyScalar"},
+    "native_int": {"status": "supported", "lifecycle": "caller_owned"},
+    "native_bool": {"status": "supported", "lifecycle": "caller_owned"},
+    "int_array": {"status": "supported", "lifecycle": "aclCreateIntArray/aclDestroyIntArray"},
+    "float_array": {"status": "supported", "lifecycle": "aclCreateFloatArray/aclDestroyFloatArray"},
+    "bool_array": {"status": "supported", "lifecycle": "aclCreateBoolArray/aclDestroyBoolArray"},
+    "tensor_list": {"status": "unsupported", "reason": "requires ACLNN tensor-list ownership contract"},
+    "optional_tensor": {"status": "unsupported", "reason": "requires null tensor ABI contract"},
+    "optional_scalar": {"status": "unsupported", "reason": "requires null scalar ABI contract"},
+}
 _TORCH_DTYPE_TO_ACL = {
     "torch.float32": 0,
     "torch.float16": 1,
@@ -185,6 +198,7 @@ class AclnnRuntime:
         self.resolver = resolver or AclnnLibraryResolver()
 
     def run(self, spec: AclnnOpSpec, inputs: list[object]) -> object:
+        self.validate_capabilities(spec)
         if not spec.inputs or not spec.outputs:
             raise ExecutionNotSupportedError("ACLNN bridge currently requires tensor inputs and tensor outputs")
         torch = self._torch_npu()
@@ -224,6 +238,19 @@ class AclnnRuntime:
                 import acl
 
                 acl.rt.free(workspace)
+
+    def validate_capabilities(self, spec: AclnnOpSpec) -> None:
+        for arg in spec.call_args:
+            capability = ACLNN_CAPABILITY_MATRIX.get(arg.kind)
+            if capability is None:
+                raise ExecutionNotSupportedError(f"unsupported ACLNN argument kind: {arg.kind}")
+            if capability["status"] != "supported":
+                raise ExecutionNotSupportedError(
+                    f"unsupported ACLNN argument kind: {arg.kind}; {capability.get('reason', 'no capability')}"
+                )
+        for output in spec.outputs:
+            if output.kind != "tensor":
+                raise ExecutionNotSupportedError(f"unsupported ACLNN output kind: {output.kind}")
 
     def _torch_npu(self):
         try:

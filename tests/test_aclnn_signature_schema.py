@@ -2,7 +2,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from cruciblex.plugins.executors.aclnn_bridge import AclnnRuntime, op_spec_from_case
+from cruciblex.plugins.executors.aclnn_bridge import (
+    ACLNN_CAPABILITY_MATRIX,
+    AclnnArg,
+    AclnnOpSpec,
+    AclnnRuntime,
+    op_spec_from_case,
+)
 from cruciblex.runtime.executors.base import ExecutionNotSupportedError
 
 
@@ -85,3 +91,26 @@ def test_array_marshaling_requires_runtime_symbols():
     library = SimpleNamespace()
     with pytest.raises(ExecutionNotSupportedError, match="aclCreateIntArray"):
         runtime._create_array_package(library, SimpleNamespace(kind="int_array", value=[1, 2], dtype=None))
+
+
+
+def test_capability_matrix_documents_supported_lifecycle_and_native_abi_boundaries():
+    assert ACLNN_CAPABILITY_MATRIX["int_array"]["lifecycle"] == "aclCreateIntArray/aclDestroyIntArray"
+    assert ACLNN_CAPABILITY_MATRIX["tensor_list"]["status"] == "unsupported"
+
+    runtime = AclnnRuntime()
+    supported = AclnnOpSpec(
+        op_name="Mean",
+        inputs=(AclnnArg(name="input"),),
+        attributes=(AclnnArg(name="dim", kind="int_array", value=[1]),),
+        outputs=(AclnnArg(name="output", role="output"),),
+    )
+    unsupported = AclnnOpSpec(
+        op_name="Example",
+        inputs=(AclnnArg(name="inputs", kind="tensor_list"),),
+        outputs=(AclnnArg(name="output", role="output"),),
+    )
+
+    runtime.validate_capabilities(supported)
+    with pytest.raises(ExecutionNotSupportedError, match="tensor-list ownership"):
+        runtime.validate_capabilities(unsupported)
