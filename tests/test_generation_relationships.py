@@ -34,12 +34,31 @@ def test_shape_relationships_resolve_declaratively_and_deterministically():
             _parameter("aligned", [5, 7], {"kind": "divisible_by", "divisor": 4, "dimension": 1}),
             _parameter("ranked", [2], {"kind": "rank_range", "min_rank": 3, "max_rank": 4}),
             _parameter("aliased", [7, 8], {"kind": "dimension_alias", "source": "input", "source_dimension": 0, "dimension": 1}),
+            _parameter("transposed", [9, 9, 9], {"kind": "transpose_of", "source": "input", "axes": [2, 0, 1]}),
         ],
     )
     first, second = expand_cases([case])[0], expand_cases([case])[0]
     shapes = {parameter.name: parameter.shape.dims for parameter in first.parameters}
-    assert shapes == {"input": [2, 3, 4], "broadcast": [1, 3, 1], "same_numel": [2, 12], "dim_match": [3, 6], "aligned": [5, 8], "ranked": [2, 1, 1], "aliased": [7, 2]}
+    assert shapes == {"input": [2, 3, 4], "broadcast": [1, 3, 1], "same_numel": [2, 12], "dim_match": [3, 6], "aligned": [5, 8], "ranked": [2, 1, 1], "aliased": [7, 2], "transposed": [4, 2, 3]}
     assert first.model_dump() == second.model_dump()
+
+
+def test_transpose_relationship_rejects_invalid_axes_without_mutating_shape():
+    case = CaseSpec(
+        id=704,
+        operator=OperatorSpec(name="invalid-transpose"),
+        invocation=InvocationSpec(api="numpy.add", api_type="function"),
+        oracle=OracleSpec(),
+        generation=GenerationSpec(seed=3, constraints=["shape_relationships"]),
+        parameters=[
+            _parameter("input", [2, 3, 4]),
+            _parameter("transposed", [5, 6, 7], {"kind": "transpose_of", "source": "input", "axes": [0, 0, 1]}),
+        ],
+    )
+
+    expanded = expand_cases([case])[0]
+
+    assert expanded.parameters[1].shape.dims == [5, 6, 7]
 
 
 def test_dtype_value_enum_and_optional_policies():

@@ -119,6 +119,15 @@ def _resolve_shape_relationship(kind: object, source: list[int] | None, target: 
         if len(target) > rank:
             return target[:rank]
         return [*target, *([1] * (rank - len(target)))]
+    if kind == "transpose_of":
+        if not source:
+            return None
+        axes = relation.get("axes")
+        if axes is None:
+            return list(reversed(source))
+        if not isinstance(axes, list) or sorted(axes) != list(range(len(source))):
+            return target
+        return [source[index] for index in axes]
     if kind == "dimension_alias":
         if not source or not target:
             return None

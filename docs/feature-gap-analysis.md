@@ -64,7 +64,7 @@ Implemented:
 
 Remaining deliverables:
 
-- Shape relationships support declarative `same_rank`, `same_numel`, `broadcastable_with`, `dim_equal`, and `divisible_by` metadata through the `shape_relationships` constraint.
+- Shape relationships support declarative `same_rank`, `same_numel`, `broadcastable_with`, `dim_equal`, `divisible_by`, and `transpose_of` metadata through the `shape_relationships` constraint; see `docs/shape-relationships.md`.
 - Dtype generation supports `dtype_policy` groups with deterministic selection, allow-list filtering, and backend-specific `backend_allowed` filtering.
 - Dtype promotion supports declarative `dtype_promotion.sources` and records the resolved source dtypes in parameter metadata.
 - Value generation supports `value_policy` kinds `constant`, `zero`, `one`, `nan`, and `inf` where the dtype permits it, in addition to boundary/random ranges.

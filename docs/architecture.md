@@ -17,7 +17,7 @@ CrucibleX models five questions explicitly:
 ## Core Boundaries
 
 - `domain` defines stable entities and must stay independent from Ray, torch, CANN, report formats, and storage engines.
-- `generation` owns case design loading and deterministic input materialization.
+- `generation` owns case design loading, deterministic input materialization, and declarative shape relationships; see [shape-relationships.md](shape-relationships.md).
 - `runtime` owns planning, scheduling, device actors, and task executors.
 - `storage` persists input/output artifacts, result state, resume metadata, and evidence references.
 - `report` converts execution results into summaries and export files.
