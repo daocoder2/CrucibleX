@@ -40,7 +40,72 @@ class CrossDeviceComparator:
                 if candidate_output is None:
                     continue
                 comparisons.append(self._compare_pair(reference, candidate, reference_output, candidate_output))
+            comparisons.extend(self._compare_npu_against_gpu(reference, group, reference_output))
         return comparisons
+
+    def _compare_npu_against_gpu(
+        self,
+        reference: ExecutionResult,
+        group: list[ExecutionResult],
+        reference_output: object,
+    ) -> list[ExecutionResult]:
+        gpu = next((result for result in group if result.backend == BackendKind.GPU), None)
+        npu = next((result for result in group if result.backend in {BackendKind.NPU, BackendKind.ACLNN}), None)
+        if gpu is None or npu is None:
+            return []
+        gpu_output = self._candidate_output(gpu)
+        npu_output = self._candidate_output(npu)
+        if gpu_output is None or npu_output is None:
+            return []
+        comparator = COMPARATOR_REGISTRY.resolve(npu.metrics.get("comparison", "allclose"))
+        tolerance = self._tolerance(npu)
+        metadata = {"reference_plan_id": reference.plan_id, "gpu_plan_id": gpu.plan_id, "npu_plan_id": npu.plan_id}
+        gpu_report = comparator.compare(ComparisonRequest(expected=reference_output, actual=gpu_output, tolerance=tolerance, metadata=metadata))
+        npu_report = comparator.compare(ComparisonRequest(expected=reference_output, actual=npu_output, tolerance=tolerance, metadata=metadata))
+        baseline_passed = npu_report.passed and npu_report.max_abs_diff <= gpu_report.max_abs_diff
+        path = self._comparison_path(reference, npu).with_name(
+            f"{self._safe_path_part(reference.plan_id)}__npu-vs-gpu-baseline.json"
+        )
+        payload = {
+            "reference_plan_id": reference.plan_id,
+            "gpu_plan_id": gpu.plan_id,
+            "npu_plan_id": npu.plan_id,
+            "cpu_evidence": reference.evidence.model_dump(mode="json") if reference.evidence else None,
+            "gpu_evidence": gpu.evidence.model_dump(mode="json") if gpu.evidence else None,
+            "npu_evidence": npu.evidence.model_dump(mode="json") if npu.evidence else None,
+            "tolerance": tolerance,
+            "gpu_max_abs_diff": gpu_report.max_abs_diff,
+            "npu_max_abs_diff": npu_report.max_abs_diff,
+            "npu_within_gpu_baseline": npu_report.max_abs_diff <= gpu_report.max_abs_diff,
+            "passed": baseline_passed,
+        }
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return [ExecutionResult(
+            plan_id=f"compare:{npu.case_id}:cpu->npu<=gpu:{npu.task.value}",
+            case_id=npu.case_id,
+            case_name=npu.case_name,
+            node_name=f"{reference.node_name}->{npu.node_name}",
+            backend=npu.backend,
+            device_id=npu.device_id,
+            task=npu.task,
+            status=ResultStatus.PASSED if baseline_passed else ResultStatus.FAILED,
+            candidate_role=ExecutionRole.CANDIDATE,
+            reference_role=ExecutionRole.REFERENCE,
+            metrics={
+                "stage": "cpu_npu_gpu_accuracy_gate",
+                "reference_plan_id": reference.plan_id,
+                "gpu_plan_id": gpu.plan_id,
+                "npu_plan_id": npu.plan_id,
+                "gpu_max_abs_diff": gpu_report.max_abs_diff,
+                "npu_max_abs_diff": npu_report.max_abs_diff,
+                "npu_within_gpu_baseline": npu_report.max_abs_diff <= gpu_report.max_abs_diff,
+                "failure_kind": "comparison_passed" if baseline_passed else "npu_exceeds_gpu_baseline",
+                "compare_detail": "NPU error is within GPU baseline" if baseline_passed else "NPU error exceeds GPU baseline or absolute tolerance",
+            },
+            artifacts=[ArtifactRef(name="cpu_npu_gpu_gate", path=path, kind="comparison", metadata={"role": "driver"})],
+            error=None if baseline_passed else "NPU error exceeds GPU baseline or absolute tolerance",
+        )]
 
     def _needs_compare(self, task: TaskKind) -> bool:
         return task in {TaskKind.ACCURACY, TaskKind.ACCURACY_LOAD, TaskKind.ACCURACY_DC}
