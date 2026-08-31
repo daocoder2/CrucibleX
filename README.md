@@ -29,6 +29,10 @@ uv run cx run --case examples/cases/torch.abs.yaml --nodes examples/nodes/local.
 
 Ray is the default execution path. Use `--scheduler local` only for lightweight debugging or smoke tests that should avoid starting Ray. See `docs/cli.md` for command inputs, outputs, and common workflows.
 
+## Docker And Hardware Validation
+
+Public image build and runtime instructions live in `docker/README.md`. The ignored `docker/private-notes.md` is also a required operational record: maintain the environment-specific NPU/GPU validation context, approved image references, driver and device mapping constraints, and validated runtime versions there. It may contain private hosts, registries, credentials, or lab commands, so it must never be committed or copied into public documentation. When a hardware gate changes, update the corresponding private evidence and keep the public runbook free of environment-specific values.
+
 Run tests with:
 
 ```bash
