@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(slots=True)
 class ComparisonRequest:
     expected: object
     actual: object
-    tolerance: dict[str, float]
+    tolerance: dict[str, object]
     metadata: dict[str, object]
 
 
@@ -19,6 +19,7 @@ class ComparisonReport:
     max_abs_diff: float
     mean_abs_diff: float
     detail: str
+    metrics: dict[str, float | int | bool] = field(default_factory=dict)
 
 
 class Comparator(ABC):

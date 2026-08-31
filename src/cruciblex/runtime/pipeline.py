@@ -209,6 +209,7 @@ class ExecutionPipeline:
                     "comparison": plan.case.oracle.comparison,
                     "atol": float(plan.case.oracle.tolerance.get("atol", 1e-6)),
                     "rtol": float(plan.case.oracle.tolerance.get("rtol", 1e-6)),
+                    "tolerance": dict(plan.case.oracle.tolerance),
                     "accuracy_policy": plan.case.oracle.accuracy_policy.model_dump(exclude_none=True, exclude_defaults=True),
                     "candidate_role": ExecutionRole.CANDIDATE.value,
                 }
@@ -237,6 +238,7 @@ class ExecutionPipeline:
                             "compare_detail": report.detail,
                             "max_abs_diff": report.max_abs_diff,
                             "mean_abs_diff": report.mean_abs_diff,
+                            **report.metrics,
                         }
                     )
                     if not report.passed:

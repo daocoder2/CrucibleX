@@ -119,6 +119,35 @@
 
 浮点和量化指标遇到任一侧包含 `NaN` 或 `Inf` 时会记录 `non_finite_count`，并使三侧 gate 失败。
 
+## P0 精度比较增强
+
+CX 的 `allclose` comparator 在保留 `atol` / `rtol` 兼容语义的基础上，统一输出以下指标：
+
+- `max_abs_diff`：最大绝对误差；
+- `mean_abs_diff`：平均绝对误差；
+- `max_relative_error`：最大相对误差；
+- `mean_relative_error`：平均相对误差；
+- `rmse`：均方根误差；
+- `matched_ratio`：满足 `atol + rtol * abs(reference)` 的元素比例；
+- `non_finite_count`：两侧 NaN/Inf 元素数量。
+
+可在 `oracle.tolerance` 中声明 mixed tolerance：
+
+```yaml
+oracle:
+  comparison: allclose
+  tolerance:
+    atol: 1.0e-5
+    rtol: 1.0e-3
+    mixed:
+      required_matched_ratio: 0.995
+      max_abs_error: 0.25
+```
+
+`required_matched_ratio` 必须在 0 到 1 之间。启用后，允许少量元素不满足基础 `allclose`，但所有有限元素的最大绝对误差仍不得超过 `max_abs_error`（如声明）。shape 不一致以及任一侧包含 NaN/Inf 始终失败。未声明 `mixed` 时仍要求所有元素通过原有 `allclose` 判定。
+
+所有 comparator 生成的指标会写入执行结果和 cross-device comparison artifact，便于报告导出和跨设备基线比较。
+
 ## 七、三侧配对约束
 
 CPU、GPU、NPU 的结果只有在 `case_id`、task 和 inputs artifact 中的 `case_fingerprint` 均相同的 group 内才会比较。不同 fingerprint 的结果不会被混配，也不会生成 CPU/GPU/NPU 三侧 gate。

@@ -217,6 +217,7 @@ class CrossDeviceComparator:
             "passed": report.passed,
             "max_abs_diff": report.max_abs_diff,
             "mean_abs_diff": report.mean_abs_diff,
+            "metrics": report.metrics,
             "detail": report.detail,
         }
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -242,6 +243,7 @@ class CrossDeviceComparator:
                 "candidate_backend": candidate.backend.value,
                 "max_abs_diff": report.max_abs_diff,
                 "mean_abs_diff": report.mean_abs_diff,
+                **report.metrics,
                 "compare_detail": report.detail,
             },
             artifacts=[ArtifactRef(name="cross_compare", path=path, kind="comparison", metadata={"role": "driver"})],
@@ -264,11 +266,12 @@ class CrossDeviceComparator:
     def _safe_path_part(self, value: str) -> str:
         return "".join(character if character.isalnum() or character in {"-", "_", "."} else "-" for character in value)
 
-    def _tolerance(self, result: ExecutionResult) -> dict[str, float]:
-        return {
-            "atol": float(result.metrics.get("atol", 1e-6)),
-            "rtol": float(result.metrics.get("rtol", 1e-6)),
-        }
+    def _tolerance(self, result: ExecutionResult) -> dict[str, object]:
+        configured = result.metrics.get("tolerance")
+        tolerance = dict(configured) if isinstance(configured, dict) else {}
+        tolerance["atol"] = float(tolerance.get("atol", result.metrics.get("atol", 1e-6)))
+        tolerance["rtol"] = float(tolerance.get("rtol", result.metrics.get("rtol", 1e-6)))
+        return tolerance
 
     def _deserialize(self, value: Any) -> object:
         if isinstance(value, dict) and {"dtype", "shape", "data"} <= set(value):
