@@ -73,6 +73,21 @@ def test_reduction_example_declares_typed_keyword_binding():
     assert case.invocation.binding == InvocationBindingSpec(mode="keyword", names=["a", "axis"])
 
 
+def test_mean_example_declares_binding_and_executes_numpy_reduction():
+    case = expand_cases(load_cases("examples/cases/numpy.mean.yaml"))[0]
+    request = ExecutionRequest(
+        case=case,
+        inputs=[np.asarray([[3, 1, 4, 2], [8, 6, 7, 5]], dtype=np.float32), 1],
+        plan=None,
+        role=ExecutionRole.CANDIDATE,
+    )
+
+    output = NumpyFunctionExecutor().execute(request)
+
+    assert case.invocation.binding == InvocationBindingSpec(mode="keyword", names=["a", "axis"])
+    np.testing.assert_array_equal(output, np.asarray([2.5, 6.5], dtype=np.float32))
+
+
 def test_broadcast_example_resolves_shapes_and_executes_numpy_add():
     case = expand_cases(load_cases("examples/cases/numpy.add.broadcast.yaml"))[0]
     request = ExecutionRequest(

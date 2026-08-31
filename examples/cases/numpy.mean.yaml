@@ -1,0 +1,30 @@
+# Deterministic NumPy reduction baseline: mean over axis 1.
+cases:
+  - id: 23
+    operator:
+      name: numpy.mean
+    invocation:
+      api: numpy.mean
+      api_type: function
+      executor: numpy
+      binding:
+        mode: keyword
+        names: [a, axis]
+    oracle:
+      comparison: allclose
+      reference_executor: numpy
+      tolerance: {atol: 1.0e-6, rtol: 1.0e-6}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [2, 4]
+        value_range:
+          valid: [[1, 8]]
+      - name: axis
+        kind: attribute
+        required: false
+        value_range:
+          valid: [1]
