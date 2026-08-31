@@ -2673,6 +2673,9 @@ fuzz:
     assert fuzz_job.cases[0].generation.seed == 23
     assert fuzz_job.cases[0].generation.invalid_count == 1
     assert fuzz_job.cases[0].generation.max_elements == 4
+    facts_metadata = fuzz_job.cases[0].generation.metadata["operator_facts"]
+    assert facts_metadata["schema_version"] == 1
+    assert facts_metadata["parameters"]["input"]["dtype_families"] == ["fp32"]
     assert fuzz_job.cases[0].generation.max_bytes == 16
     assert fuzz_job.cases[0].parameters[0].metadata["random_coverage"] is True
     assert fuzz_job.cases[0].parameters[0].metadata["random_shapes"] == [[4], [2, 2]]

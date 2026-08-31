@@ -244,6 +244,45 @@ class ValuePolicyConstraint(ConstraintPlugin):
         return parameter.model_copy(update={"metadata": metadata})
 
 
+class OperatorFactsConstraint(ConstraintPlugin):
+    """Project declarative operator facts into parameter-level generation policies."""
+
+    def after_case(self, case: CaseSpec, context: GenerationContext) -> CaseSpec:
+        facts = case.generation.metadata.get("operator_facts")
+        if not isinstance(facts, dict):
+            return case
+        facts_by_name = facts.get("parameters")
+        if not isinstance(facts_by_name, dict):
+            return case
+        updated: list[ParameterSpec] = []
+        groups: dict[str, str] = {}
+        for parameter in case.parameters:
+            fact = facts_by_name.get(parameter.name)
+            if not isinstance(fact, dict):
+                updated.append(parameter)
+                continue
+            metadata = dict(parameter.metadata)
+            for key in ("dtype_policy", "value_policy", "shape_policy", "dtype_promotion"):
+                if key in fact:
+                    metadata.setdefault(key, fact[key])
+            shape_policy = fact.get("shape_policy")
+            if isinstance(shape_policy, dict):
+                rank_range = shape_policy.get("rank_range")
+                if isinstance(rank_range, list) and len(rank_range) == 2:
+                    metadata.setdefault("shape_relationship", {"kind": "rank_range", "min_rank": rank_range[0], "max_rank": rank_range[1]})
+                broadcast_group = shape_policy.get("broadcast_group")
+                if isinstance(broadcast_group, str):
+                    source = groups.setdefault(broadcast_group, parameter.name or "")
+                    if source and source != parameter.name:
+                        metadata.setdefault("shape_relationship", {"kind": "broadcastable_with", "source": source})
+            dtypes = fact.get("dtypes") or fact.get("dtype_families")
+            if isinstance(dtypes, list) and not parameter.dtypes:
+                parameter = parameter.model_copy(update={"dtypes": [str(dtype) for dtype in dtypes]})
+            metadata["resolved_operator_facts"] = True
+            updated.append(parameter.model_copy(update={"metadata": metadata}))
+        return case.model_copy(update={"parameters": updated})
+
+
 class DtypePolicyConstraint(ConstraintPlugin):
     def after_parameter(self, parameter: ParameterSpec, context: GenerationContext) -> ParameterSpec:
         policy = parameter.metadata.get("dtype_policy")
@@ -257,12 +296,20 @@ class DtypePolicyConstraint(ConstraintPlugin):
         allowed = policy.get("allowed")
         if isinstance(allowed, list):
             candidates = [dtype for dtype in candidates if dtype in allowed]
+        denied = policy.get("denied")
+        if isinstance(denied, list):
+            candidates = [dtype for dtype in candidates if dtype not in denied]
         backend = policy.get("backend")
         backend_allowed = policy.get("backend_allowed")
         if isinstance(backend_allowed, dict) and backend is not None:
             selected = backend_allowed.get(str(backend))
             if isinstance(selected, list):
                 candidates = [dtype for dtype in candidates if dtype in selected]
+        backend_denied = policy.get("backend_denied")
+        if isinstance(backend_denied, dict) and backend is not None:
+            selected = backend_denied.get(str(backend))
+            if isinstance(selected, list):
+                candidates = [dtype for dtype in candidates if dtype not in selected]
         if not candidates:
             return parameter
         metadata = dict(parameter.metadata)
@@ -416,6 +463,7 @@ def _num_elements(dims: list[int]) -> int:
 
 
 CONSTRAINT_REGISTRY.register("boundary_coverage")(BoundaryCoverageConstraint)
+CONSTRAINT_REGISTRY.register("operator_facts")(OperatorFactsConstraint)
 CONSTRAINT_REGISTRY.register("value_policy")(ValuePolicyConstraint)
 CONSTRAINT_REGISTRY.register("dtype_policy")(DtypePolicyConstraint)
 CONSTRAINT_REGISTRY.register("linked_parameters")(LinkedParametersConstraint)

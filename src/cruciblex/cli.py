@@ -951,6 +951,16 @@ def _case_doc(
     generation: dict[str, Any],
     fuzz: bool = False,
 ) -> dict[str, Any]:
+    generation = dict(generation)
+    generation_metadata = dict(generation.get("metadata") or {})
+    generation_metadata.setdefault(
+        "operator_facts",
+        {
+            "schema_version": 1,
+            "parameters": {str(param.get("name", "input")): param for param in params},
+        },
+    )
+    generation["metadata"] = generation_metadata
     case = {
         "id": int(payload.get("case_id", 1000)),
         "operator": {"name": name},
@@ -974,15 +984,22 @@ def _case_doc(
 def _parameter_from_fact(param: dict[str, Any]) -> dict[str, Any]:
     shape_rules = param.get("shape_rules") or {}
     value_range = param.get("value_range") or {}
+    shape = {key: shape_rules[key] for key in ("dims", "dim_count", "dim_values", "max_elements") if key in shape_rules}
+    if not shape:
+        shape = {"dims": [1]}
+    metadata = {key: param[key] for key in ("dtype_policy", "value_policy", "shape_policy", "dtype_promotion") if key in param}
+    if "relationships" in param:
+        metadata["shape_relationship"] = param["relationships"]
     return {
         "name": param.get("name", "input"),
         "kind": param.get("kind", "tensor"),
-        "dtypes": param.get("dtype_families", ["fp32"]),
-        "shape": {"dims": shape_rules.get("dims", [1])},
+        "dtypes": param.get("dtypes", param.get("dtype_families", ["fp32"])),
+        "shape": shape,
         "value_range": {
             "valid": value_range.get("valid", [[-1, 1]]),
             "invalid": value_range.get("invalid", []),
         },
+        "metadata": metadata,
     }
 
 
@@ -990,6 +1007,7 @@ def _fuzz_parameter_from_fact(param: dict[str, Any], global_fuzz: dict[str, Any]
     parameter = _parameter_from_fact(param)
     fuzz = {**global_fuzz, **(param.get("fuzz") or {})}
     metadata = {
+        **dict(parameter.get("metadata") or {}),
         "random_coverage": True,
         "random_dtypes": list(fuzz.get("random_dtypes", param.get("dtype_families", ["fp32"]))),
         "random_shapes": list(fuzz.get("random_shapes", [list(param.get("shape_rules", {}).get("dims", [1]))])),

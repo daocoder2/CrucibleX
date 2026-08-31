@@ -135,17 +135,40 @@ class DefaultInputGenerator(InputGenerator):
         policy_value = self._policy_value(parameter, dtype)
         if policy_value is not None:
             data = np.full(shape or (), policy_value, dtype=dtype)
-            return data if shape else data[()]
+            return self._apply_layout_policy(data if shape else data[()], parameter)
         matrix = self._matrix_profile(parameter, shape, dtype)
         if matrix is not None:
-            return matrix
+            return self._apply_layout_policy(matrix, parameter)
         total = int(np.prod(shape)) if shape else 1
         policy_values = self._boundary_values(parameter, dtype, total)
         if policy_values is not None:
-            return policy_values.reshape(shape) if shape else policy_values[0]
+            data = policy_values.reshape(shape) if shape else policy_values[0]
+            return self._apply_layout_policy(data, parameter)
         value_range = self._tensor_range(parameter)
         data = self._distribution_values(parameter, value_range, total, dtype)
-        return data.reshape(shape) if shape else data[0]
+        return self._apply_layout_policy(data.reshape(shape) if shape else data[0], parameter)
+
+    def _apply_layout_policy(self, value, parameter: ParameterSpec):
+        policy = parameter.metadata.get("shape_policy")
+        if not isinstance(policy, dict) or not isinstance(value, np.ndarray):
+            return value
+        storage_shape = policy.get("storage_shape")
+        if isinstance(storage_shape, list) and all(isinstance(dim, int) and dim >= 0 for dim in storage_shape):
+            storage = np.zeros(tuple(storage_shape), dtype=value.dtype)
+            slices = policy.get("slice")
+            if not isinstance(slices, list):
+                raise ValueError("storage_shape requires a slice list")
+            index = tuple(slice(*(item if isinstance(item, list) else [item])) for item in slices)
+            view = storage[index]
+            if view.shape != value.shape:
+                raise ValueError(f"storage slice shape {list(view.shape)} does not match generated shape {list(value.shape)}")
+            view[...] = value
+            value = view
+        if policy.get("non_contiguous"):
+            if value.ndim < 2:
+                raise ValueError("non_contiguous shape_policy requires rank at least 2")
+            value = np.swapaxes(value, -1, -2)
+        return value
 
     def _matrix_profile(self, parameter: ParameterSpec, shape: list[int], dtype):
         policy = parameter.metadata.get("value_policy")
@@ -169,6 +192,16 @@ class DefaultInputGenerator(InputGenerator):
                 raise ValueError("well_conditioned matrix_profile condition_number must be at least 1")
             singular = np.linspace(1.0, 1.0 / condition, rank_limit)
             return ((left * singular) @ right.T).astype(dtype)
+        if profile == "identity":
+            return np.eye(rows, columns, dtype=dtype)
+        if profile == "diagonal":
+            diagonal = rng.normal(size=min(rows, columns))
+            return np.diag(diagonal).astype(dtype) if rows == columns else np.eye(rows, columns, dtype=dtype) * diagonal[:1]
+        if profile == "symmetric":
+            if rows != columns:
+                raise ValueError("symmetric matrix_profile requires a square shape")
+            data = rng.normal(size=shape)
+            return ((data + data.T) / 2).astype(dtype)
         if profile == "rank_deficient":
             rank = int(policy.get("rank", max(1, rank_limit - 1)))
             if rank < 0 or rank >= rank_limit:
@@ -231,10 +264,13 @@ class DefaultInputGenerator(InputGenerator):
         if kind == "integer_bounds" and np.issubdtype(dtype, np.integer):
             info = np.iinfo(dtype)
             return np.resize(np.asarray([info.min, info.max], dtype=dtype), total)
-        if kind == "float_bounds" and np.issubdtype(dtype, np.floating):
+        if kind in {"float_bounds", "extreme"} and np.issubdtype(dtype, np.floating):
             info = np.finfo(dtype)
             scale = min(1.0, max(1e-6, float(policy.get("scale", 0.5))))
             return np.resize(np.asarray([-info.max * scale, 0, info.max * scale], dtype=dtype), total)
+        if kind == "subnormal" and np.issubdtype(dtype, np.floating):
+            smallest = np.nextafter(dtype(0), dtype(1), dtype=dtype)
+            return np.resize(np.asarray([-smallest, 0, smallest], dtype=dtype), total)
         return None
 
     def _distribution_values(self, parameter: ParameterSpec, value_range: tuple[float, float], total: int, dtype):
@@ -245,6 +281,12 @@ class DefaultInputGenerator(InputGenerator):
             data = rng.uniform(float(policy.get("low", value_range[0])), float(policy.get("high", value_range[1])), total)
         elif kind == "normal":
             data = rng.normal(float(policy.get("mean", 0)), float(policy.get("std", 1)), total)
+        elif kind == "exponential":
+            data = rng.exponential(float(policy.get("scale", 1.0)), total)
+            if policy.get("signed"):
+                data *= rng.choice([-1.0, 1.0], total)
+        elif kind == "complex_normal":
+            data = rng.normal(float(policy.get("mean", 0)), float(policy.get("std", 1)), total) + 1j * rng.normal(0, float(policy.get("imag_std", policy.get("std", 1))), total)
         elif kind == "sparsity":
             ratio = min(1.0, max(0.0, float(policy.get("ratio", 0.5))))
             data = rng.uniform(value_range[0], value_range[1], total)
@@ -264,9 +306,9 @@ class DefaultInputGenerator(InputGenerator):
             return 0
         if kind == "one":
             return 1
-        if kind == "nan" and np.issubdtype(dtype, np.floating):
+        if kind == "nan" and (np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.complexfloating)):
             return np.nan
-        if kind == "inf" and np.issubdtype(dtype, np.floating):
+        if kind == "inf" and (np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.complexfloating)):
             return np.inf
         return None
 
@@ -308,6 +350,10 @@ class DefaultInputGenerator(InputGenerator):
             "fp16": np.float16,
             "float16": np.float16,
             "bf16": np.float32,
+            "complex64": np.complex64,
+            "complex128": np.complex128,
+            "c64": np.complex64,
+            "c128": np.complex128,
             "int64": np.int64,
             "int32": np.int32,
             "int16": np.int16,

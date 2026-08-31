@@ -212,3 +212,40 @@ def test_matrix_profile_rejects_non_matrix_or_invalid_rank():
         generator._generate_parameter(invalid_rank)
     with pytest.raises(ValueError, match="condition_number"):
         generator._generate_parameter(invalid_condition)
+
+
+def test_operator_facts_drive_dtype_backend_deny_and_broadcast_relationships():
+    case = CaseSpec(
+        id=720,
+        operator=OperatorSpec(name="facts-test"),
+        invocation=InvocationSpec(api="numpy.add", api_type="function"),
+        generation=GenerationSpec(metadata={"operator_facts": {"schema_version": 1, "parameters": {
+            "left": {"dtypes": ["fp32", "bf16"], "dtype_policy": {"backend": "npu", "backend_denied": {"npu": ["fp32"]}}, "shape_policy": {"broadcast_group": "inputs"}},
+            "right": {"dtypes": ["fp32", "bf16"], "shape_policy": {"broadcast_group": "inputs"}},
+        }}}),
+        parameters=[_parameter("left", [2, 3]).model_copy(update={"dtypes": []}), _parameter("right", [7, 3]).model_copy(update={"dtypes": []})],
+    )
+
+    expanded = expand_cases([case])[0]
+
+    assert expanded.parameters[0].dtypes == ["bf16"]
+    assert expanded.parameters[1].shape.dims == [1, 3]
+    assert all(parameter.metadata["resolved_operator_facts"] for parameter in expanded.parameters)
+
+
+def test_extended_value_dtype_and_layout_policies_generate_declared_boundaries():
+    generator = DefaultInputGenerator()
+    complex_parameter = _parameter("complex", [4]).model_copy(update={"dtypes": ["complex64"], "metadata": {"value_policy": {"kind": "complex_normal"}}})
+    subnormal_parameter = _parameter("subnormal", [3]).model_copy(update={"metadata": {"value_policy": {"kind": "subnormal"}}})
+    layout_parameter = _parameter("layout", [2, 2]).model_copy(update={"metadata": {"shape_policy": {"storage_shape": [4, 4], "slice": [[1, 3], [0, 2]], "non_contiguous": True}}})
+
+    complex_values = generator._generate_parameter(complex_parameter)
+    subnormal_values = generator._generate_parameter(subnormal_parameter)
+    layout_values = generator._generate_parameter(layout_parameter)
+
+    assert complex_values.dtype == np.complex64
+    assert np.any(complex_values.imag != 0)
+    assert np.any(subnormal_values != 0)
+    assert np.all(np.abs(subnormal_values[np.nonzero(subnormal_values)]) < np.finfo(np.float32).tiny)
+    assert layout_values.shape == (2, 2)
+    assert not layout_values.flags.c_contiguous

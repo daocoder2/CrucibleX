@@ -93,6 +93,10 @@ def _apply_invalid_values(case: CaseSpec, invalid_index: int) -> CaseSpec:
 
 def _constraint_names(case: CaseSpec) -> list[str]:
     names = list(case.generation.constraints)
+    if isinstance(case.generation.metadata.get("operator_facts"), dict):
+        for name in ("operator_facts", "dtype_policy", "value_policy", "shape_relationships", "dtype_promotion"):
+            if name not in names:
+                names.append(name)
     if case.generation.max_elements is not None and "max_elements" not in names:
         names.append("max_elements")
     if case.generation.max_bytes is not None and "max_bytes" not in names:
