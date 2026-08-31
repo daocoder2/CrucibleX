@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import yaml
+
 from cruciblex.domain import (
     CaseSpec,
     InvocationSpec,
@@ -15,7 +17,9 @@ from cruciblex.domain import (
     ValueRange,
 )
 from cruciblex.generation.loader import load_case
+from cruciblex.plugins.generators.dump_replay import DumpReplayGenerator
 from cruciblex.report.repro import ReproBundleWriter
+from cruciblex.runtime.generation import GenerationRequest
 from cruciblex.storage.results import ResultStore
 
 
@@ -53,4 +57,11 @@ def test_repro_writer_materializes_standalone_case_and_inputs(tmp_path):
     assert artifacts["inputs"] == str(input_path)
     assert load_case(case_path).id == 1300000
     assert json.loads(input_path.read_text(encoding="utf-8"))["inputs"] == [[-1.0, 1.0]]
-    assert "--plan-id" in (root / "repro.sh").read_text(encoding="utf-8")
+    replay_case = load_case(case_path)
+    assert replay_case.generator == "dump_replay"
+    assert replay_case.generation.metadata["input_snapshot_path"] == str(input_path)
+    assert DumpReplayGenerator().generate(GenerationRequest(case=replay_case, plan=None, context=None)) == [[-1.0, 1.0]]
+    script = (root / "repro.sh").read_text(encoding="utf-8")
+    assert str(case_path) in script
+    assert "--plan-id" not in script
+    assert yaml.safe_load(case_path.read_text(encoding="utf-8"))["metadata"]["repro"]["kind"] == "fixed_input_replay"

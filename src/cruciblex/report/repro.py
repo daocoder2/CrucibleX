@@ -56,20 +56,14 @@ class ReproBundleWriter:
         failure = root / "failure.json"
         failure.write_text(json.dumps(cluster, ensure_ascii=False, indent=2), encoding="utf-8")
         artifacts["failure"] = str(failure)
-        script = root / "repro.sh"
-        script.write_text(str(cluster["rerun_script"]), encoding="utf-8")
-        script.chmod(0o755)
-        artifacts["repro_script"] = str(script)
         representative = next(iter(cluster.get("cases", [])), {})
         case_id = representative.get("case_id")
+        case: dict[str, Any] | None = None
         generated = self.output_root / "generated_cases.json"
         if generated.exists():
             payload = json.loads(generated.read_text(encoding="utf-8"))
             case = next((item for item in payload.get("cases", []) if item.get("id") == case_id), None)
             if case is not None:
-                path = root / "minimized_case.yaml"
-                path.write_text(yaml.safe_dump(case, sort_keys=False), encoding="utf-8")
-                artifacts["minimized_case"] = str(path)
                 candidates = semantic_reduction_candidates(case)
                 if replay_predicate is not None:
                     reduced_case, attempts = reduce_with_predicate(case, replay_predicate)
@@ -94,12 +88,25 @@ class ReproBundleWriter:
         plan_id = representative.get("plan_id")
         result = next((item for item in self._store.read_results_jsonl() if item.plan_id == plan_id), None)
         input_ref = next((item for item in result.artifacts if item.name == "inputs"), None) if result else None
+        input_path: Path | None = None
         if input_ref and input_ref.path.exists():
-            path = root / "inputs.json"
-            shutil.copy2(input_ref.path, path)
-            artifacts["inputs"] = str(path)
+            input_path = root / "inputs.json"
+            shutil.copy2(input_ref.path, input_path)
+            artifacts["inputs"] = str(input_path)
         else:
             artifacts["inputs"] = "missing_inputs"
+        if case is not None and input_path is not None:
+            replay_case = self._with_fixed_inputs(case, input_path)
+            path = root / "minimized_case.yaml"
+            path.write_text(yaml.safe_dump(replay_case, sort_keys=False), encoding="utf-8")
+            artifacts["minimized_case"] = str(path)
+            script = root / "repro.sh"
+            script.write_text(self._standalone_rerun_script(manifest, path, root), encoding="utf-8")
+            script.chmod(0o755)
+            artifacts["repro_script"] = str(script)
+        else:
+            artifacts["minimized_case"] = artifacts.get("minimized_case", "missing_case_or_inputs")
+            artifacts["repro_script"] = "missing_case_or_inputs"
         return artifacts
 
     def _read_postprocess(self) -> dict[str, Any]:
@@ -167,6 +174,37 @@ class ReproBundleWriter:
                 }
             )
         return reduced
+
+    def _with_fixed_inputs(self, case: dict[str, Any], input_path: Path) -> dict[str, Any]:
+        replay_case = dict(case)
+        generation = dict(replay_case.get("generation") or {})
+        generation["count"] = 1
+        generation_metadata = dict(generation.get("metadata") or {})
+        generation_metadata["input_snapshot_path"] = str(input_path)
+        generation["metadata"] = generation_metadata
+        replay_case["generation"] = generation
+        replay_case["generator"] = "dump_replay"
+        metadata = dict(replay_case.get("metadata") or {})
+        metadata["repro"] = {
+            "kind": "fixed_input_replay",
+            "source_case_id": case.get("id"),
+            "input_snapshot": str(input_path),
+        }
+        replay_case["metadata"] = metadata
+        return replay_case
+
+    def _standalone_rerun_script(self, manifest: RunManifest, case_path: Path, root: Path) -> str:
+        parts = ["cx", "run", "--case", str(case_path), "--nodes", str(manifest.node_path)]
+        for task in manifest.tasks:
+            parts.extend(["--task", task.value])
+        parts.extend(["--scheduler", manifest.scheduler.value])
+        if manifest.ray_address:
+            parts.extend(["--ray-address", manifest.ray_address])
+        for plugin in manifest.plugin_paths:
+            parts.extend(["--plugin", str(plugin)])
+        parts.extend(["--output", str(root / "rerun-output")])
+        command = " ".join(shlex.quote(part) for part in parts)
+        return self._rerun_script([command])
 
     def _rerun_script(self, commands: list[str]) -> str:
         if not commands:
