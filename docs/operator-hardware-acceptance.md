@@ -31,3 +31,9 @@
 ## Evidence Rule
 
 通过 gate 只表示该 Case 在指定真实设备环境中产生了可审计 evidence，不自动扩展为所有 shape、dtype 或 ABI 的后端支持声明。
+
+## Local Probe
+
+本次开发环境探测到公开可见的 NVIDIA GPU，但项目 `uv` 环境未安装 `torch` 或 `torch_npu`，因此未执行任何 Torch/ACLNN 实机 lane。这不是 operator failure：运行 gate 前必须在目标设备环境安装与 case/executor 匹配的 runtime，并使用对应 Node document。
+
+Gate 依赖和设备可见性是两个独立前置条件；两者均满足后，才可把 gate 结果记为真实硬件 evidence。
