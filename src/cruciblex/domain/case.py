@@ -84,6 +84,12 @@ class AccuracyPolicySpec(BaseModel):
         return self
 
 
+class RuntimePolicySpec(BaseModel):
+    schema_version: Literal[1] = 1
+    deterministic: bool | None = None
+    synchronize_timing: bool | None = None
+
+
 class OracleSpec(BaseModel):
     comparison: str = "allclose"
     reference_executor: str | None = None
@@ -112,6 +118,7 @@ class CaseSpec(BaseModel):
     generator: str = "default"
     generation: GenerationSpec = Field(default_factory=GenerationSpec)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    runtime_policy: RuntimePolicySpec = Field(default_factory=RuntimePolicySpec)
 
     @property
     def name(self) -> str:

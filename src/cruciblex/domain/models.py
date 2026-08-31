@@ -6,6 +6,7 @@ from cruciblex.domain.case import (
     OperatorSpec,
     OracleSpec,
     ParameterSpec,
+    RuntimePolicySpec,
     ShapeSpec,
     ValueRange,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "ResultStatus",
     "RunContext",
     "RunManifest",
+    "RuntimePolicySpec",
     "SchedulerKind",
     "ShapeSpec",
     "TaskKind",

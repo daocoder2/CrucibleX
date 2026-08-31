@@ -26,6 +26,7 @@ class NodeSpec(BaseModel):
     role: str = "candidate"
     allowed_tasks: set[TaskKind] = Field(default_factory=set)
     labels: set[str] = Field(default_factory=set)
+    runtime_policy_capabilities: set[str] = Field(default_factory=set)
 
     @field_validator("devices", mode="after")
     @classmethod

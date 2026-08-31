@@ -17,6 +17,7 @@ class DeviceContext(BaseModel):
     output_root: Path
     env: dict[str, str] = Field(default_factory=dict)
     labels: set[str] = Field(default_factory=set)
+    runtime_policy_capabilities: set[str] = Field(default_factory=set)
 
     @property
     def backend(self) -> BackendKind:
@@ -30,6 +31,7 @@ class DeviceContext(BaseModel):
             device=device,
             output_root=output_root,
             labels=set(node.labels) | set(device.labels),
+            runtime_policy_capabilities=set(node.runtime_policy_capabilities),
         )
 
 

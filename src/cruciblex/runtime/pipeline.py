@@ -104,6 +104,7 @@ class ExecutionPipeline:
             context=context,
             role=ExecutionRole.CANDIDATE,
         )
+        runtime_policy, synchronize_timing = self._apply_runtime_policy(plan, context)
         expected_error = plan.case.oracle.expected_error
         expected_invalid = bool(plan.case.metadata.get("expected_invalid"))
         track_memory = self._is_memory_task(plan.task)
@@ -114,12 +115,14 @@ class ExecutionPipeline:
         if track_hardware:
             hardware_metrics.update(self._reset_hardware_metrics(context, candidate_executor_name))
             hardware_metrics.update(self._hardware_memory_snapshot(context, candidate_executor_name, "before"))
-            hardware_metrics.update(self._synchronize_device(context, candidate_executor_name, "before"))
+            if synchronize_timing:
+                hardware_metrics.update(self._synchronize_device(context, candidate_executor_name, "before"))
         benchmark = self._benchmark_policy(plan)
         if self._is_performance_task(plan.task):
             for _ in range(benchmark["warmup"]):
                 candidate_executor.execute(candidate_request)
-                self._synchronize_device(context, candidate_executor_name, "warmup")
+                if synchronize_timing:
+                    self._synchronize_device(context, candidate_executor_name, "warmup")
         started_at = time.perf_counter()
         samples_ms: list[float] = []
         memory_peak_bytes = 0
@@ -130,11 +133,12 @@ class ExecutionPipeline:
             while len(samples_ms) < repeat or (min_time_ms > 0 and (time.perf_counter() - started_at) * 1000.0 < min_time_ms):
                 sample_started = time.perf_counter()
                 candidate_output = candidate_executor.execute(candidate_request)
-                if benchmark["repeat"] > 1:
+                if benchmark["repeat"] > 1 and synchronize_timing:
                     self._synchronize_device(context, candidate_executor_name, "sample")
                 samples_ms.append((time.perf_counter() - sample_started) * 1000.0)
             if track_hardware:
-                hardware_metrics.update(self._synchronize_device(context, candidate_executor_name, "after"))
+                if synchronize_timing:
+                    hardware_metrics.update(self._synchronize_device(context, candidate_executor_name, "after"))
                 hardware_metrics.update(self._hardware_memory_snapshot(context, candidate_executor_name, "after"))
             if track_memory:
                 _, memory_peak_bytes = tracemalloc.get_traced_memory()
@@ -164,6 +168,7 @@ class ExecutionPipeline:
             "output_shape": self._shape_of(candidate_output),
             "duration_ms": duration_ms,
             "candidate_executor": candidate_executor_name,
+            **({"runtime_policy": runtime_policy} if runtime_policy else {}),
         }
         if context is not None:
             metrics.update(self._context_metrics(context, candidate_executor_name))
@@ -578,6 +583,39 @@ class ExecutionPipeline:
             deltas["hardware_memory_peak_bytes"] = max_allocated
             deltas["hardware_memory_peak_mb"] = max_allocated / (1024.0 * 1024.0)
         return deltas
+
+    def _apply_runtime_policy(self, plan: ExecutionPlan, context: DeviceContext | None) -> tuple[dict[str, Any], bool]:
+        policy = plan.case.runtime_policy
+        requested = policy.model_dump(exclude_none=True, exclude_defaults=True)
+        requested.pop("schema_version", None)
+        if not requested:
+            return {}, True
+        capabilities = set(context.runtime_policy_capabilities) if context is not None else set()
+        evidence: dict[str, Any] = {
+            "schema_version": policy.schema_version,
+            "requested": requested,
+            "effective": {},
+            "unsupported": [],
+        }
+        synchronize_timing = True
+        if "synchronize_timing" in requested:
+            if "synchronize_timing" not in capabilities:
+                evidence["unsupported"].append("synchronize_timing")
+            else:
+                synchronize_timing = bool(policy.synchronize_timing)
+                evidence["effective"]["synchronize_timing"] = synchronize_timing
+        if "deterministic" in requested:
+            if "deterministic" not in capabilities:
+                evidence["unsupported"].append("deterministic")
+            else:
+                try:
+                    import torch
+
+                    torch.use_deterministic_algorithms(bool(policy.deterministic))
+                    evidence["effective"]["deterministic"] = bool(policy.deterministic)
+                except Exception as exc:  # noqa: BLE001 - runtime availability is backend-dependent
+                    evidence["unsupported"].append(f"deterministic:{type(exc).__name__}")
+        return evidence, synchronize_timing
 
     def _torch_accelerator(self, context: DeviceContext | None, executor_name: str) -> Any | None:
         if context is None or executor_name not in {"torch", "aclnn"}:
