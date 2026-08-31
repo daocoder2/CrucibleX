@@ -63,11 +63,13 @@ class ExecutionPipeline:
             plan,
             persist=persist_artifacts,
         )
-        if context is not None and context.backend == BackendKind.GPU:
-            evidence_json = context.env.get("CX_GPU_EVIDENCE_JSON")
+        if context is not None and context.backend in {BackendKind.GPU, BackendKind.NPU, BackendKind.ACLNN}:
+            prefix = "GPU" if context.backend == BackendKind.GPU else "NPU"
+            kind = "gpu_evidence" if context.backend == BackendKind.GPU else "npu_evidence"
+            evidence_json = context.env.get(f"CX_{prefix}_EVIDENCE_JSON")
             if evidence_json:
                 try:
-                    recorder.record_json("gpu_evidence", json.loads(evidence_json), "gpu_evidence", "environment")
+                    recorder.record_json(kind, json.loads(evidence_json), kind, "environment")
                 except (OSError, ValueError):
                     logger.warning(bind_event("pipeline.evidence_degraded", plan=plan.plan_id))
 
@@ -445,6 +447,12 @@ class ExecutionPipeline:
             fingerprint = metrics.get("gpu_evidence_fingerprint")
             if metrics.get("gpu_evidence_path"):
                 artifact_refs.append(str(metrics["gpu_evidence_path"]))
+        if backend in {BackendKind.NPU, BackendKind.ACLNN} and "npu_available" in metrics:
+            probe_status = "available" if metrics.get("npu_available") else "unavailable"
+            runtime = {key: metrics[key] for key in ("npu_device_count", "torch_version", "torch_npu_version", "npu_device_name") if metrics.get(key) is not None}
+            fingerprint = metrics.get("npu_evidence_fingerprint")
+            if metrics.get("npu_evidence_path"):
+                artifact_refs.append(str(metrics["npu_evidence_path"]))
         return HardwareEvidence(
             backend=backend,
             host=metrics.get("host"),
@@ -608,6 +616,18 @@ class ExecutionPipeline:
                 "gpu_evidence_storage": context.env.get("CX_GPU_EVIDENCE_STORAGE"),
                 "gpu_evidence": context.env.get("CX_GPU_EVIDENCE_JSON"),
                 "gpu_evidence_fingerprint": context.env.get("CX_GPU_EVIDENCE_FINGERPRINT"),
+            })
+        if context.backend in {BackendKind.NPU, BackendKind.ACLNN}:
+            metrics.update({
+                "npu_available": context.env.get("CX_NPU_AVAILABLE") == "true",
+                "npu_device_count": int(context.env.get("CX_NPU_DEVICE_COUNT", "0")),
+                "torch_version": context.env.get("CX_NPU_TORCH_VERSION"),
+                "torch_npu_version": context.env.get("CX_NPU_TORCH_NPU_VERSION"),
+                "npu_device_name": context.env.get("CX_NPU_DEVICE_NAME"),
+                "npu_evidence_path": context.env.get("CX_NPU_EVIDENCE"),
+                "npu_evidence_storage": context.env.get("CX_NPU_EVIDENCE_STORAGE"),
+                "npu_evidence": context.env.get("CX_NPU_EVIDENCE_JSON"),
+                "npu_evidence_fingerprint": context.env.get("CX_NPU_EVIDENCE_FINGERPRINT"),
             })
         return metrics
 

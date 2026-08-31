@@ -18,7 +18,7 @@
 
 - `available` 只表示对应 runtime probe 确认可用，不代表算子精度、性能或稳定性已通过。
 - `unknown` 表示当前 backend 尚未提供可验证 probe，绝不能在报告中解释为可用。
-- NPU 和 ACLNN 的真实硬件结论必须由匹配资源的 Ray worker、执行结果和保留 artifact 支撑。
+- NPU 和 ACLNN 的真实硬件结论必须由匹配资源的执行环境、执行结果和保留 artifact 支撑；一次性 Docker gate 也必须保留 driver 挂载与设备映射的验证上下文。
 - CSV、Markdown 等输出应投影 `evidence`；旧的 backend 专用 metrics 仅在迁移期保留。
 
 ## 滚动升级
@@ -27,4 +27,4 @@ Ray worker 与 Driver 允许短暂处于不同的部署版本。若旧 worker �
 
 ## 当前覆盖
 
-GPU 已把现有 probe、CUDA 版本、fingerprint 和 `gpu_evidence` artifact 映射到统一结构。CPU、NPU 和 ACLNN 已输出同一契约与 `unknown` probe 状态，直到各自 runtime probe 和真实硬件 gate 落地。
+GPU 已把现有 probe、CUDA 版本、fingerprint 和 `gpu_evidence` artifact 映射到统一结构。NPU 与 ACLNN 会采集 `torch.npu.is_available()`、设备数量、Torch/torch_npu 版本和设备名称，写入 `npu_evidence` artifact；只有 probe 成功时才标记 `available`。CPU 仍输出 `unknown`。

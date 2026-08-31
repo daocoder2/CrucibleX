@@ -57,17 +57,22 @@ class ExecutionResult(BaseModel):
         if self.evidence is not None or self.metrics.get("stage") == "cross_device_compare":
             return self
         metrics = self.metrics
-        artifact_refs = [str(artifact.path) for artifact in self.artifacts if artifact.kind == "gpu_evidence"]
-        if metrics.get("gpu_evidence_path"):
-            artifact_refs.append(str(metrics["gpu_evidence_path"]))
+        artifact_refs = [str(artifact.path) for artifact in self.artifacts if artifact.kind in {"gpu_evidence", "npu_evidence"}]
+        for key in ("gpu_evidence_path", "npu_evidence_path"):
+            if metrics.get(key):
+                artifact_refs.append(str(metrics[key]))
         artifact_refs = list(dict.fromkeys(artifact_refs))
         probe_status = "unknown"
         runtime: dict[str, Any] = {}
         fingerprint = None
-        if self.backend == BackendKind.GPU:
+        if self.backend == BackendKind.GPU and "gpu_available" in metrics:
             probe_status = "available" if metrics.get("gpu_available") else "unavailable"
             runtime = {key: metrics[key] for key in ("cuda_version", "gpu_device_count") if metrics.get(key) is not None}
             fingerprint = metrics.get("gpu_evidence_fingerprint")
+        if self.backend in {BackendKind.NPU, BackendKind.ACLNN} and "npu_available" in metrics:
+            probe_status = "available" if metrics.get("npu_available") else "unavailable"
+            runtime = {key: metrics[key] for key in ("npu_device_count", "torch_version", "torch_npu_version", "npu_device_name") if metrics.get(key) is not None}
+            fingerprint = metrics.get("npu_evidence_fingerprint")
         return self.model_copy(
             update={
                 "evidence": HardwareEvidence(
