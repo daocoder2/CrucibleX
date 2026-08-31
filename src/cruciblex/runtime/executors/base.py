@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from cruciblex.domain.case import CaseSpec
+from cruciblex.domain.case import CaseSpec, InvocationBindingSpec
 from cruciblex.domain.enums import ExecutionRole
 from cruciblex.domain.plan import ExecutionPlan
 from cruciblex.runtime.backends.base import DeviceContext
@@ -19,29 +19,35 @@ class ExecutionRequest:
     role: ExecutionRole = ExecutionRole.CANDIDATE
 
     def call_arguments(self, values: list[object]) -> tuple[list[object], dict[str, object]]:
-        binding = self.case.invocation.metadata.get("binding", {})
-        if not isinstance(binding, dict) or binding.get("mode", "positional") == "positional":
-            return [value for index, value in enumerate(values) if not self._omitted(index)], {}
-        names = binding.get("names") or [parameter.name for parameter in self.case.parameters]
+        binding = self._binding()
+        if binding.mode == "positional":
+            return [value for index, value in enumerate(values) if not self._omitted(index, binding)], {}
+        names = binding.names or [parameter.name for parameter in self.case.parameters]
         if len(names) < len(values):
             raise ValueError("binding names must cover every input")
-        positional_indexes = set(binding.get("positional", [])) if binding.get("mode") == "mixed" else set()
+        positional_indexes = set(binding.positional) if binding.mode == "mixed" else set()
         if any(index < 0 or index >= len(values) for index in positional_indexes):
             raise ValueError("mixed positional index is out of range")
         if positional_indexes and positional_indexes != set(range(max(positional_indexes) + 1)):
             raise ValueError("mixed positional indexes must form a contiguous prefix")
         if any(self.case.parameters[index].metadata.get("keyword_only") for index in positional_indexes):
             raise ValueError("keyword-only parameters cannot be positional")
-        positional = [value for index, value in enumerate(values) if index in positional_indexes and not self._omitted(index)]
-        kwargs = {str(name): values[index] for index, name in enumerate(names) if index < len(values) and index not in positional_indexes and not self._omitted(index)}
+        positional = [value for index, value in enumerate(values) if index in positional_indexes and not self._omitted(index, binding)]
+        kwargs = {str(name): values[index] for index, name in enumerate(names) if index < len(values) and index not in positional_indexes and not self._omitted(index, binding)}
         return positional, kwargs
 
-    def _omitted(self, index: int) -> bool:
-        binding = self.case.invocation.metadata.get("binding", {})
-        omitted = binding.get("omit", []) if isinstance(binding, dict) else []
+    def _binding(self) -> InvocationBindingSpec:
+        if self.case.invocation.binding is not None:
+            return self.case.invocation.binding
+        legacy_binding = self.case.invocation.metadata.get("binding")
+        if isinstance(legacy_binding, dict):
+            return InvocationBindingSpec.model_validate(legacy_binding)
+        return InvocationBindingSpec()
+
+    def _omitted(self, index: int, binding: InvocationBindingSpec) -> bool:
         if index >= len(self.case.parameters):
             return False
-        return self.case.parameters[index].name in omitted or index in omitted
+        return self.case.parameters[index].name in binding.omit or index in binding.omit
 
 
 class ExecutionNotSupportedError(RuntimeError):

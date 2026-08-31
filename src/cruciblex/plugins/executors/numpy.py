@@ -18,13 +18,16 @@ class NumpyFunctionExecutor(BackendExecutor):
         executor = _EXECUTORS.get(api) or _EXECUTORS.get(request.case.operator.name)
         if executor is None:
             raise ExecutionNotSupportedError(f"unsupported operator: {request.case.operator.name}")
-        return executor(request.inputs)
+        args, kwargs = request.call_arguments(request.inputs)
+        return executor(args, kwargs)
 
 
-_EXECUTORS: dict[str, Callable[[list[object]], object]] = {
-    "torch.abs": lambda inputs: np.abs(_require_one(inputs)),
-    "abs": lambda inputs: np.abs(_require_one(inputs)),
-    "torch.add": lambda inputs: np.add(_require_one(inputs, 0), _require_one(inputs, 1)),
+_EXECUTORS: dict[str, Callable[[list[object], dict[str, object]], object]] = {
+    "torch.abs": lambda args, kwargs: np.abs(_require_one(args)),
+    "abs": lambda args, kwargs: np.abs(_require_one(args)),
+    "torch.add": lambda args, kwargs: np.add(_require_one(args, 0), _require_one(args, 1)),
+    "numpy.sum": lambda args, kwargs: np.sum(*args, **kwargs),
+    "sum": lambda args, kwargs: np.sum(*args, **kwargs),
 }
 
 

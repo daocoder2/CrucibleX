@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -37,10 +37,18 @@ class OperatorSpec(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class InvocationBindingSpec(BaseModel):
+    mode: Literal["positional", "keyword", "mixed"] = "positional"
+    names: list[str] = Field(default_factory=list)
+    positional: list[int] = Field(default_factory=list)
+    omit: list[str | int] = Field(default_factory=list)
+
+
 class InvocationSpec(BaseModel):
     api: str
     api_type: str
     executor: str | None = None
+    binding: InvocationBindingSpec | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -1,4 +1,11 @@
-from cruciblex.domain import CaseSpec, InvocationSpec, OperatorSpec, ParameterKind, ParameterSpec
+from cruciblex.domain import (
+    CaseSpec,
+    InvocationBindingSpec,
+    InvocationSpec,
+    OperatorSpec,
+    ParameterKind,
+    ParameterSpec,
+)
 from cruciblex.domain.enums import ExecutionRole
 from cruciblex.runtime.executors.base import ExecutionRequest
 
@@ -6,6 +13,14 @@ from cruciblex.runtime.executors.base import ExecutionRequest
 def _request(metadata):
     case = CaseSpec(id=1, operator=OperatorSpec(name="x"), invocation=InvocationSpec(api="x", api_type="function", metadata=metadata), parameters=[ParameterSpec(name="input", kind=ParameterKind.SCALAR), ParameterSpec(name="dim", kind=ParameterKind.ATTRIBUTE, required=False)])
     return ExecutionRequest(case=case, inputs=[1, 2], plan=None, role=ExecutionRole.CANDIDATE)
+
+
+def test_typed_binding_is_preferred_over_legacy_metadata():
+    request = _request({"binding": {"mode": "keyword", "omit": ["dim"]}})
+    request.case.invocation.binding = InvocationBindingSpec(mode="keyword", names=["input", "dim"])
+    args, kwargs = request.call_arguments([1, 2])
+    assert args == []
+    assert kwargs == {"input": 1, "dim": 2}
 
 
 def test_default_binding_remains_positional():

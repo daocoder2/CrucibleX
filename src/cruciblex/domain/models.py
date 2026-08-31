@@ -1,5 +1,6 @@
 from cruciblex.domain.case import (
     CaseSpec,
+    InvocationBindingSpec,
     InvocationSpec,
     OperatorSpec,
     OracleSpec,
@@ -30,6 +31,7 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionResult",
     "ExecutionRole",
+    "InvocationBindingSpec",
     "InvocationSpec",
     "JobSpec",
     "NodeSpec",

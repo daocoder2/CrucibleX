@@ -1,0 +1,31 @@
+cases:
+  - id: 20
+    operator:
+      name: numpy.sum
+    invocation:
+      api: numpy.sum
+      api_type: function
+      executor: numpy
+      binding:
+        mode: keyword
+        names: [a, axis]
+    oracle:
+      comparison: allclose
+      reference_executor: numpy
+      tolerance:
+        atol: 1.0e-6
+        rtol: 1.0e-6
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [2]
+        value_range:
+          valid: [[1, 2]]
+      - name: axis
+        kind: attribute
+        required: false
+        value_range:
+          valid: [0]
