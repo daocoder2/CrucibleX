@@ -62,3 +62,36 @@ shape_policy:
 ```
 
 新增 policy 必须保持确定性：任何随机 value policy 通过 `value_policy_seed` 固化；新增 operator facts 只描述事实和策略，不能引入专用算子生成器。
+
+## Policy Libraries
+
+参数 policy 可通过 `library` 引用内置条目，并以同一个 dict 覆盖库默认值：
+
+```yaml
+dtype_policy:
+  library: low_precision_floating
+  backend_denied:
+    cpu: [bf16]
+value_policy:
+  library: signed_exponential
+  scale: 0.5
+shape_policy:
+  library: offset_stride
+  storage_shape: [8, 8]
+  storage_offset: 9
+  strides: [8, 2]
+```
+
+- dtype：`floating`（默认 fp32）、`low_precision_floating`（fp16/bf16）、`complex`、`integer`、`boolean`。
+- value：`float_edges`、`integer_edges`、`boolean_edges`、`complex_edges`、`signed_exponential`、`extreme`、`sparse`。edge library 通过 `boundary_set` 保留 NaN、Inf、subnormal、signed zero、整数 min/max 等边界集合。
+- shape/layout：`non_contiguous`、`offset_stride`、`sliced_view`。`storage_offset` 与 `strides` 以元素数计，底层转换为 NumPy byte strides；越界时生成直接失败，绝不创建未验证视图。
+
+## Built-in Operator Facts
+
+`torch.add`、`torch.matmul` 与 `torch.softmax` 会自动合并内置 facts。它们只提供参数级 dtype/value/shape 默认策略，且 Case 中显式 metadata 具有更高优先级。
+
+- `torch.add`：floating dtype、binary broadcast group 与 floating edge values；
+- `torch.matmul`：floating dtype、rank-2 well-conditioned matrix profile，以及右输入第 0 维别名到左输入第 1 维；
+- `torch.softmax`：floating dtype 与 signed exponential values。
+
+也可以通过 `generation.metadata.operator_fact_library` 指定一个或多个库名。当前内置 facts 不自动声明 invocation binding、attributes、outputs 或 backend 支持能力；这些仍属于 Case、executor 与 Node 契约。

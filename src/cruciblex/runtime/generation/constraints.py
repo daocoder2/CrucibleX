@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from cruciblex.domain.case import CaseSpec, ParameterSpec, ShapeSpec
 from cruciblex.domain.enums import ParameterKind
+from cruciblex.generation.policies import merge_facts, operator_facts, resolve_policy
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,9 +249,19 @@ class OperatorFactsConstraint(ConstraintPlugin):
     """Project declarative operator facts into parameter-level generation policies."""
 
     def after_case(self, case: CaseSpec, context: GenerationContext) -> CaseSpec:
-        facts = case.generation.metadata.get("operator_facts")
-        if not isinstance(facts, dict):
-            return case
+        inline_facts = case.generation.metadata.get("operator_facts")
+        library_names = case.generation.metadata.get("operator_fact_library", [])
+        if isinstance(library_names, str):
+            library_names = [library_names]
+        facts: dict[str, object] = {}
+        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax"):
+            library_names = [*library_names, case.operator.name]
+        if isinstance(library_names, list):
+            for name in library_names:
+                if isinstance(name, str):
+                    facts = merge_facts(facts, operator_facts(name))
+        if isinstance(inline_facts, dict):
+            facts = merge_facts(facts, inline_facts)
         facts_by_name = facts.get("parameters")
         if not isinstance(facts_by_name, dict):
             return case
@@ -262,10 +273,14 @@ class OperatorFactsConstraint(ConstraintPlugin):
                 updated.append(parameter)
                 continue
             metadata = dict(parameter.metadata)
-            for key in ("dtype_policy", "value_policy", "shape_policy", "dtype_promotion"):
-                if key in fact:
-                    metadata.setdefault(key, fact[key])
-            shape_policy = fact.get("shape_policy")
+            policy_kinds = {"dtype_policy": "dtype", "value_policy": "value", "shape_policy": "shape"}
+            for key in ("dtype_policy", "value_policy", "shape_policy", "shape_relationship", "dtype_promotion"):
+                value = metadata.get(key, fact.get(key))
+                if key in policy_kinds and isinstance(value, dict):
+                    value = resolve_policy(policy_kinds[key], value)
+                if value is not None:
+                    metadata[key] = value
+            shape_policy = metadata.get("shape_policy")
             if isinstance(shape_policy, dict):
                 rank_range = shape_policy.get("rank_range")
                 if isinstance(rank_range, list) and len(rank_range) == 2:

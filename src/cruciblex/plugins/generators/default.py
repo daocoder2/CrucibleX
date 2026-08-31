@@ -153,7 +153,7 @@ class DefaultInputGenerator(InputGenerator):
         if not isinstance(policy, dict) or not isinstance(value, np.ndarray):
             return value
         storage_shape = policy.get("storage_shape")
-        if isinstance(storage_shape, list) and all(isinstance(dim, int) and dim >= 0 for dim in storage_shape):
+        if isinstance(storage_shape, list) and policy.get("strides") is None and all(isinstance(dim, int) and dim >= 0 for dim in storage_shape):
             storage = np.zeros(tuple(storage_shape), dtype=value.dtype)
             slices = policy.get("slice")
             if not isinstance(slices, list):
@@ -162,6 +162,21 @@ class DefaultInputGenerator(InputGenerator):
             view = storage[index]
             if view.shape != value.shape:
                 raise ValueError(f"storage slice shape {list(view.shape)} does not match generated shape {list(value.shape)}")
+            view[...] = value
+            value = view
+        strides = policy.get("strides")
+        if strides is not None:
+            if not isinstance(storage_shape, list) or not isinstance(strides, list):
+                raise ValueError("strides requires storage_shape")
+            if len(strides) != value.ndim:
+                raise ValueError("strides rank must match generated tensor rank")
+            storage = np.zeros(tuple(storage_shape), dtype=value.dtype)
+            offset = int(policy.get("storage_offset", 0)) * value.dtype.itemsize
+            byte_strides = tuple(int(stride) * value.dtype.itemsize for stride in strides)
+            try:
+                view = np.ndarray(value.shape, dtype=value.dtype, buffer=storage, offset=offset, strides=byte_strides)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("storage_offset/strides exceed storage_shape") from exc
             view[...] = value
             value = view
         if policy.get("non_contiguous"):
@@ -256,11 +271,40 @@ class DefaultInputGenerator(InputGenerator):
             return tuple(shape.dim_values)
         return ()
 
+    def _boundary_set(self, values, dtype, total: int):
+        if np.issubdtype(dtype, np.bool_):
+            return np.resize(np.asarray([bool(value) for value in values], dtype=dtype), total)
+        component_dtype = np.empty((), dtype=dtype).real.dtype if np.issubdtype(dtype, np.complexfloating) else dtype
+        info = np.iinfo(component_dtype) if np.issubdtype(component_dtype, np.integer) else np.finfo(component_dtype)
+        resolved = []
+        for value in values:
+            if value == "min":
+                resolved.append(info.min)
+            elif value == "max":
+                resolved.append(info.max)
+            elif value in {"-max", "extreme_negative"}:
+                resolved.append(-info.max)
+            elif value in {"-one", "one"}:
+                resolved.append(-1 if value == "-one" else 1)
+            elif value in {"-zero", "zero"}:
+                resolved.append(0)
+            elif value == "subnormal":
+                resolved.append(np.nextafter(dtype(0), dtype(1), dtype=dtype))
+            elif value == "-subnormal":
+                resolved.append(-np.nextafter(dtype(0), dtype(1), dtype=dtype))
+            elif value in {"inf", "-inf", "nan"} and (np.issubdtype(dtype, np.floating) or np.issubdtype(dtype, np.complexfloating)):
+                resolved.append({"inf": np.inf, "-inf": -np.inf, "nan": np.nan}[value])
+            else:
+                resolved.append(value)
+        return np.resize(np.asarray(resolved, dtype=dtype), total)
+
     def _boundary_values(self, parameter: ParameterSpec, dtype, total: int):
         policy = parameter.metadata.get("value_policy")
         if not isinstance(policy, dict):
             return None
         kind = policy.get("kind")
+        if kind == "boundary_set":
+            return self._boundary_set(policy.get("values", []), dtype, total)
         if kind == "integer_bounds" and np.issubdtype(dtype, np.integer):
             info = np.iinfo(dtype)
             return np.resize(np.asarray([info.min, info.max], dtype=dtype), total)

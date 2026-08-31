@@ -249,3 +249,55 @@ def test_extended_value_dtype_and_layout_policies_generate_declared_boundaries()
     assert np.all(np.abs(subnormal_values[np.nonzero(subnormal_values)]) < np.finfo(np.float32).tiny)
     assert layout_values.shape == (2, 2)
     assert not layout_values.flags.c_contiguous
+
+
+def test_policy_libraries_resolve_builtin_operator_facts_and_numeric_edges():
+    case = CaseSpec(
+        id=730,
+        operator=OperatorSpec(name="torch.add"),
+        invocation=InvocationSpec(api="torch.add", api_type="function"),
+        parameters=[_parameter("input", [3, 3]), _parameter("other", [5, 3])],
+    )
+    expanded = expand_cases([case])[0]
+    generator = DefaultInputGenerator()
+
+    values = generator.generate(type("Request", (), {"case": expanded})())
+
+    assert [parameter.dtypes for parameter in expanded.parameters] == [["fp32"], ["fp32"]]
+    assert expanded.parameters[1].shape.dims == [1, 3]
+    assert np.isinf(values[0]).any()
+    assert np.isnan(values[0]).any()
+
+    boolean = _parameter("boolean", [2]).model_copy(update={"dtypes": ["bool"], "metadata": {"value_policy": {"kind": "boundary_set", "values": [False, True]}}})
+    integer = _parameter("integer", [5]).model_copy(update={"dtypes": ["int8"], "metadata": {"value_policy": {"kind": "boundary_set", "values": ["min", "-one", "zero", "one", "max"]}}})
+    complex_values = _parameter("complex", [4]).model_copy(update={"dtypes": ["complex64"], "metadata": {"value_policy": {"kind": "boundary_set", "values": ["zero", "one", "inf", "nan"]}}})
+
+    assert generator._generate_parameter(boolean).tolist() == [False, True]
+    assert generator._generate_parameter(integer).tolist() == [-128, -1, 0, 1, 127]
+    assert np.isinf(generator._generate_parameter(complex_values)).any()
+
+
+def test_layout_policy_supports_storage_offset_and_element_strides():
+    parameter = _parameter("strided", [2, 2]).model_copy(update={"metadata": {"shape_policy": {"storage_shape": [4, 4], "storage_offset": 1, "strides": [4, 2]}}})
+
+    values = DefaultInputGenerator()._generate_parameter(parameter)
+
+    assert values.shape == (2, 2)
+    assert values.strides == (16, 8)
+    assert not values.flags.c_contiguous
+
+
+
+def test_builtin_matmul_facts_alias_inner_dimensions():
+    case = CaseSpec(
+        id=731,
+        operator=OperatorSpec(name="torch.matmul"),
+        invocation=InvocationSpec(api="torch.matmul", api_type="function"),
+        parameters=[_parameter("input", [2, 3]), _parameter("other", [9, 4])],
+    )
+
+    expanded = expand_cases([case])[0]
+
+    assert expanded.parameters[0].dtypes == ["fp32"]
+    assert expanded.parameters[1].shape.dims == [3, 4]
+    assert expanded.parameters[1].metadata["resolved_shape_relationship"] == "dimension_alias"
