@@ -7,6 +7,7 @@ from typing import Any
 
 from cruciblex.domain.result import ExecutionResult
 from cruciblex.domain.run import RunManifest
+from cruciblex.storage.report_export import REPORT_EXPORT_FIELDS, project_result
 
 
 class ResultStore:
@@ -60,6 +61,21 @@ class ResultStore:
             writer.writeheader()
             for result in results:
                 writer.writerow(self._result_row(result.with_derived_evidence()))
+        return path
+
+    def write_report_jsonl(self, manifest: RunManifest, results: list[ExecutionResult], name: str = "report.jsonl") -> Path:
+        path = self.ensure() / name
+        lines = [json.dumps(project_result(manifest, result), ensure_ascii=False) for result in results]
+        path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        return path
+
+    def write_report_csv(self, manifest: RunManifest, results: list[ExecutionResult], name: str = "report.csv") -> Path:
+        path = self.ensure() / name
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=REPORT_EXPORT_FIELDS)
+            writer.writeheader()
+            for result in results:
+                writer.writerow(project_result(manifest, result))
         return path
 
     def read_results_jsonl(self, name: str = "results.jsonl") -> list[ExecutionResult]:

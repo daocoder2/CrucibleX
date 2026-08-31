@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from cruciblex.domain.result import ExecutionResult
+from cruciblex.storage.report_export import REPORT_EXPORT_SCHEMA_VERSION
 from cruciblex.storage.results import ResultStore
 
 
@@ -68,6 +69,9 @@ class MarkdownReportWriter:
             f"- input_schema_version: {manifest.input_schema_version}",
             f"- runtime_compatibility: {compatibility_status}",
             f"- version_policy: {version_policy}",
+            f"- report_export_schema_version: {REPORT_EXPORT_SCHEMA_VERSION}",
+            f"- report_jsonl: {self._store.ensure() / 'report.jsonl'}",
+            f"- report_csv: {self._store.ensure() / 'report.csv'}",
             "",
             "## Summary",
             f"- total: {total}",
