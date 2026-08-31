@@ -1,0 +1,21 @@
+# 固定输入的 CPU/GPU/NPU 三侧精度比较样例。
+cases:
+  - id: 301
+    operator: {name: torch.relu}
+    invocation: {api: torch.relu, api_type: function, executor: torch}
+    oracle:
+      comparison: allclose
+      tolerance: {atol: 1.0e-6, rtol: 1.0e-6}
+      accuracy_policy:
+        category: floating
+        thresholds: {mare: 1.0e-6, mere: 1.0e-6, rmse: 1.0e-6}
+        small_value_threshold: 0.1
+        max_error_count: 0
+    generator: default
+    generation: {count: 1, seed: 301}
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 4]}
+        values: [[-2.0, -0.05, 0.0, 0.25], [1.5, -1.0, 3.0, 0.01]]

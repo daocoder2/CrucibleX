@@ -1,0 +1,16 @@
+# 单机 CPU + GPU 三侧精度比较节点配置。
+nodes:
+  - name: local-cpu
+    host: 127.0.0.1
+    role: reference
+    allowed_tasks: [accuracy]
+    devices:
+      - id: 0
+        backend: cpu
+  - name: local-gpu
+    host: 127.0.0.1
+    role: candidate
+    allowed_tasks: [accuracy]
+    devices:
+      - id: 0
+        backend: gpu
