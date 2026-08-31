@@ -360,3 +360,48 @@ def test_collection_relationships_link_length_dtype_and_shape():
     assert expanded.parameters[2].metadata["item_dtypes"] == ["fp16"]
     assert expanded.parameters[3].metadata["item_shapes"] == [[2, 3]]
     assert all(value.shape == (2, 3) for value in shape_values)
+
+
+def test_collection_broadcast_zip_cartesian_and_nested_items():
+    left = ParameterSpec(name="left", kind=ParameterKind.TENSOR_LIST, dtypes=["fp32"], metadata={"item_shapes": [[2, 1], [1, 3]], "length": 2})
+    right = ParameterSpec(name="right", kind=ParameterKind.TENSOR_LIST, dtypes=["fp32"], metadata={"item_shapes": [[1, 3], [2, 1]], "length": 2, "collection_relationship": {"kind": "broadcast_items_with", "source": "left"}})
+    zipped = ParameterSpec(name="zipped", kind=ParameterKind.TENSOR_LIST, dtypes=["fp32"], metadata={"length": 5, "collection_relationship": {"kind": "zip_with", "source": "left"}})
+    cartesian = ParameterSpec(name="cartesian", kind=ParameterKind.TENSOR_LIST, dtypes=["fp32"], metadata={"length": 4, "collection_relationship": {"kind": "cartesian_with", "source": "left"}})
+    nested = ParameterSpec(name="nested", kind=ParameterKind.TENSOR_LIST, dtypes=["fp32"], metadata={"items": [{"kind": "tensor_list", "metadata": {"length": 2, "item_shapes": [[2], [3]]}}]})
+    case = CaseSpec(id=734, operator=OperatorSpec(name="collection-composition"), invocation=InvocationSpec(api="numpy.add", api_type="function"), generation=GenerationSpec(constraints=["linked_parameters"]), parameters=[left, right, zipped, cartesian, nested])
+
+    expanded = expand_cases([case])[0]
+    generated = DefaultInputGenerator()
+    broadcast_values = generated._generate_parameter(expanded.parameters[1])
+    nested_values = generated._generate_parameter(expanded.parameters[4])
+
+    assert expanded.parameters[1].metadata["item_shapes"] == [[2, 3], [2, 3]]
+    assert all(value.shape == shape for value, shape in zip(broadcast_values, [(2, 3), (2, 3)], strict=True))
+    assert expanded.parameters[2].metadata["length"] == 2
+    assert expanded.parameters[2].metadata["collection_pairing"] == "zip"
+    assert expanded.parameters[3].metadata["length"] == 8
+    assert expanded.parameters[3].metadata["collection_pairing"] == "cartesian"
+    assert len(nested_values) == 1
+    assert [value.shape for value in nested_values[0]] == [(2,), (3,)]
+
+
+@pytest.mark.parametrize("operator", ["torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk"])
+def test_extended_operator_facts_apply_floating_rank_and_seeded_values(operator):
+    case = CaseSpec(id=735, operator=OperatorSpec(name=operator), invocation=InvocationSpec(api=operator, api_type="function"), parameters=[_parameter("input", [2, 3])])
+
+    expanded = expand_cases([case])[0]
+    parameter = expanded.parameters[0]
+
+    assert parameter.dtypes == ["fp32"]
+    assert parameter.metadata["resolved_operator_facts"] is True
+    assert parameter.metadata["shape_relationship"]["kind"] == "rank_range"
+    assert parameter.metadata["value_policy"]["kind"] == "normal"
+
+
+def test_index_select_facts_select_int64_index():
+    case = CaseSpec(id=736, operator=OperatorSpec(name="torch.index_select"), invocation=InvocationSpec(api="torch.index_select", api_type="function"), parameters=[_parameter("input", [2, 3]), _parameter("index", [2]).model_copy(update={"dtypes": []})])
+
+    expanded = expand_cases([case])[0]
+
+    assert expanded.parameters[0].dtypes == ["fp32"]
+    assert expanded.parameters[1].dtypes == ["int64"]

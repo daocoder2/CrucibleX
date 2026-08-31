@@ -49,6 +49,37 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
             "input": {"dtype_policy": {"library": "floating"}, "value_policy": {"library": "signed_exponential"}},
         },
     },
+    "torch.sum": {
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
+        },
+    },
+    "torch.mean": {
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
+        },
+    },
+    "torch.norm": {
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
+        },
+    },
+    "torch.sort": {
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
+        },
+    },
+    "torch.topk": {
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
+        },
+    },
+    "torch.index_select": {
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "value_policy": {"kind": "normal", "scale": 1.0}},
+            "index": {"dtype_policy": {"library": "integer", "allowed": ["int64"]}},
+        },
+    },
 }
 
 

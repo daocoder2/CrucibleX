@@ -121,3 +121,26 @@ collection_relationship:
 - `same_item_shape_as` 复用 source 的 `item_shapes` 或参数 shape。
 
 关系结果会记录在 `resolved_collection_relationship`，并继续由 default generator 使用既有 `length`、`item_dtypes` 与 `item_shapes` metadata 生成实际元素。
+
+## Extended Operator Facts
+
+内置 facts 还覆盖 `torch.sum`、`torch.mean`、`torch.norm`、`torch.sort`、`torch.topk` 和 `torch.index_select`。
+
+- reduce/sort/topk/norm：input 默认 floating、rank 1-4 和确定性 normal value policy。attribute、输出数量和 output dtype/shape 仍由 Case invocation/output contract 声明。
+- index-select：input 默认 floating，`index` 收敛为 `int64`。当前没有 source dimension 驱动的 index range constraint，因此 facts 不会声明自动生成的 index 一定可执行；需要 Case exact values 或专用 value relationship。
+- conv 与完整 attention 尚不自动启用。它们分别缺 output spatial formula/groups contract 与 QKV/mask/dropout contract；不要将 generic facts 当成已验证的后端能力。
+
+## Extended Collection Relationships
+
+除基础 same-length/dtype/shape 外，还支持：
+
+- `broadcast_items_with`：逐元素计算可广播的 item shape；不可广播 pair 保持未解析。
+- `zip_with`：目标 length 复用 source length，并记录 `collection_pairing: zip`。
+- `cartesian_with`：目标 length 为 source 与目标原始长度的乘积，并记录 `collection_pairing: cartesian`。
+- nested/ragged：使用逐项 `metadata.items` 表达，元素可再次为 collection；不会隐式填充或压平成矩形。
+
+## Hardware Dtype/Layout Gate
+
+`scripts/hardware_dtype_layout_gate.sh` 是 bf16、layout、stride、special-value 四条 lane 的可复用硬件 gate。调用者必须显式设置 `CASE_BF16`、`CASE_LAYOUT`、`CASE_STRIDE`、`CASE_SPECIAL`，并可覆盖 `NODE_PATH`、`SCHEDULER` 与 `OUTPUT_ROOT`。每条 lane 执行 accuracy 后要求 result metrics 同时含 input dtype contract 和 `backend_dtype_source`，因此只适合实际 Torch/ACLNN device-tensor executor 的环境。
+
+该脚本不包含设备地址、镜像、registry 或其他私有运行配置。

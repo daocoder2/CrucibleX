@@ -109,7 +109,51 @@ def _resolve_collection_relationship(parameter: ParameterSpec, source: Parameter
             return {"item_shapes": list(shapes)}
         if source.shape is not None and source.shape.dims is not None:
             return {"item_shapes": [list(source.shape.dims)]}
+    if kind == "broadcast_items_with":
+        source_shapes = source_metadata.get("item_shapes")
+        target_shapes = parameter.metadata.get("item_shapes")
+        if not isinstance(source_shapes, list):
+            source_shapes = [source.shape.dims] if source.shape and source.shape.dims else []
+        if not isinstance(target_shapes, list):
+            target_shapes = [parameter.shape.dims] if parameter.shape and parameter.shape.dims else []
+        shapes = [_broadcast_item_shape(left, right) for left, right in zip(target_shapes, source_shapes, strict=False)]
+        if shapes:
+            return {"item_shapes": shapes}
+    if kind == "zip_with":
+        length = _collection_length(source)
+        if length is not None:
+            return {"length": length, "collection_pairing": "zip"}
+    if kind == "cartesian_with":
+        source_length = _collection_length(source)
+        target_length = _collection_length(parameter)
+        if source_length is not None and target_length is not None:
+            return {"length": source_length * target_length, "collection_pairing": "cartesian"}
     return {}
+
+
+def _collection_length(parameter: ParameterSpec) -> int | None:
+    items = parameter.metadata.get("items")
+    if isinstance(items, list):
+        return len(items)
+    for key in ("length", "list_length", "tuple_length", "item_count"):
+        value = parameter.metadata.get(key)
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def _broadcast_item_shape(left: object, right: object) -> list[int]:
+    left_dims = list(left) if isinstance(left, list) else []
+    right_dims = list(right) if isinstance(right, list) else []
+    width = max(len(left_dims), len(right_dims))
+    left_dims = [1] * (width - len(left_dims)) + left_dims
+    right_dims = [1] * (width - len(right_dims)) + right_dims
+    result = []
+    for value, other in zip(left_dims, right_dims, strict=True):
+        if value not in {1, other} and other != 1:
+            return []
+        result.append(max(value, other))
+    return result
 
 
 class ShapeRelationshipsConstraint(ConstraintPlugin):
@@ -298,7 +342,7 @@ class OperatorFactsConstraint(ConstraintPlugin):
         if isinstance(library_names, str):
             library_names = [library_names]
         facts: dict[str, object] = {}
-        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax"):
+        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select"):
             library_names = [*library_names, case.operator.name]
         if isinstance(library_names, list):
             for name in library_names:
@@ -318,7 +362,7 @@ class OperatorFactsConstraint(ConstraintPlugin):
                 continue
             metadata = dict(parameter.metadata)
             policy_kinds = {"dtype_policy": "dtype", "value_policy": "value", "shape_policy": "shape"}
-            for key in ("dtype_policy", "value_policy", "shape_policy", "shape_relationship", "dtype_promotion"):
+            for key in ("dtype_policy", "value_policy", "shape_policy", "shape_relationship", "collection_relationship", "dtype_promotion"):
                 value = metadata.get(key, fact.get(key))
                 if key in policy_kinds and isinstance(value, dict):
                     value = resolve_policy(policy_kinds[key], value)
