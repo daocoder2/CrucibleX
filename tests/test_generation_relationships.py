@@ -422,3 +422,15 @@ def test_operator_contract_resolves_reduce_topk_index_and_matmul_evidence():
     assert expanded[2].metadata["resolved_operator_contract"]["index_range"] == [0, 4]
     assert expanded[3].metadata["resolved_operator_contract"]["batch_shape"] == [2, 5]
     assert expanded[3].metadata["resolved_operator_contract"]["inner_dimension"] == 4
+
+
+def test_declarative_conv_norm_attention_and_aclnn_contracts_remain_capability_only():
+    case = CaseSpec(id=744, operator=OperatorSpec(name="contract-declarations"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), generation=GenerationSpec(metadata={"operator_fact_library": ["torch.conv2d", "torch.layer_norm", "torch.scaled_dot_product_attention"], "operator_contract": {"aclnn": {"format": "ND", "storage_shape": "declared", "workspace": "runtime_managed", "dynamic_output": False}}}), parameters=[])
+
+    expanded = expand_cases([case])[0]
+    contract = expanded.metadata["resolved_operator_contract"]
+
+    assert contract["family"] == "attention"
+    assert contract["runtime_supported"] is False
+    assert contract["aclnn"]["workspace"] == "runtime_managed"
+    assert contract["aclnn"]["dynamic_output"] is False

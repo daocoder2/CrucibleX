@@ -115,6 +115,9 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
             "mat2": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [3, 3]}},
         },
     },
+    "torch.conv2d": {"contract": {"family": "conv", "input": "input", "weight": "weight", "bias": "bias", "attributes": ["stride", "padding", "dilation", "groups"], "shape_formula": "NCHW_OIHW", "runtime_supported": False}},
+    "torch.layer_norm": {"contract": {"family": "norm", "input": "input", "normalized_shape": "normalized_shape", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False}},
+    "torch.scaled_dot_product_attention": {"contract": {"family": "attention", "query": "query", "key": "key", "value": "value", "mask": "attn_mask", "dropout": "dropout_p", "causal": "is_causal", "runtime_supported": False}},
 }
 
 
