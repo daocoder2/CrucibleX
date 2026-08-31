@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import random
 from typing import Any
 
 
@@ -15,7 +16,10 @@ def expand_campaign_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
         return expanded
     if not isinstance(matrix, dict):
         raise TypeError("campaign matrix must be a mapping")
-    dimensions = matrix.get("dimensions", matrix)
+    controls = {"base", "dimensions", "max_runs", "seed"}
+    dimensions = matrix.get("dimensions")
+    if dimensions is None:
+        dimensions = {key: value for key, value in matrix.items() if key not in controls}
     if not isinstance(dimensions, dict):
         raise TypeError("campaign matrix dimensions must be a mapping")
     base = matrix.get("base", {})
@@ -28,11 +32,26 @@ def expand_campaign_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(options, list) or not options:
             raise TypeError(f"campaign matrix dimension {key!r} must be a non-empty list")
         values.append(options)
+    candidates = []
     for index, combination in enumerate(itertools.product(*values)):
         item = {**base, **dict(zip(keys, combination))}
         item.setdefault("name", "matrix-" + "-".join(_slug(str(item[key])) for key in keys))
         item["matrix_id"] = _matrix_id(item, index)
-        expanded.append(item)
+        candidates.append(item)
+    total = len(candidates)
+    max_runs = matrix.get("max_runs")
+    if max_runs is not None:
+        limit = int(max_runs)
+        if limit < 1:
+            raise ValueError("campaign matrix max_runs must be positive")
+        if len(candidates) > limit:
+            rng = random.Random(int(matrix.get("seed", 0)))
+            selected_ids = {item["matrix_id"] for item in rng.sample(candidates, limit)}
+            candidates = [item for item in candidates if item["matrix_id"] in selected_ids]
+    for item in candidates:
+        item["matrix_total"] = total
+        item["matrix_selected"] = len(candidates)
+    expanded.extend(candidates)
     return expanded
 
 
