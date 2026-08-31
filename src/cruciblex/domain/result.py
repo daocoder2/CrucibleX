@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -23,6 +23,7 @@ class ArtifactRef(BaseModel):
 
 
 class ExecutionResult(BaseModel):
+    result_schema_version: Literal[1] = 1
     plan_id: str
     case_id: int
     case_name: str

@@ -1,10 +1,10 @@
 # ATK Capability Coverage Roadmap
 
-This document evaluates CrucibleX against the main ATK capability surface. The goal is to cover ATK's user value while keeping the new Ray-first architecture smaller, stricter, and easier to verify.
+本文将 ATK 作为已验证的算子测试工作流和资产参考。CrucibleX 是独立的评测框架，目标是在保持 Ray-first 架构更小、更严格、更易验证的前提下，沉淀持久的用户价值。兼容适配器是可选边界，不是产品目标。
 
 ## First Principles
 
-- Cover ATK capability, not ATK's old object graph.
+- 将 ATK 能力视为用户价值证据，而不是完整性目标或实现蓝图。
 - Keep operator facts, generated cases, execution topology, backend adaptation, and reports as separate contracts.
 - Use Ray as the default placement and fan-out layer; keep local execution as a debug path.
 - Treat CPU, GPU, NPU, ACLNN, and DCU as resource-backed execution targets, not separate product flows.

@@ -45,6 +45,13 @@ Agents must not:
 - Commit environment-specific host credentials, private access details, or transient execution logs in this file.
 - Revert unrelated user changes while trying to clean up the worktree.
 
+## 开发语言约定
+
+- 新增或实质性改写的文档、代码注释、示例说明、变更说明和提交信息以中文为主。
+- 代码标识符、CLI 参数、协议字段、产品名、第三方 API 名称和必要的专业术语保持英文，避免破坏接口可读性。
+- 历史英文文档不因语言约定单独翻译；修改时按变更范围逐步中文化。
+- Git 提交使用 Conventional Commit 格式，说明部分使用中文，例如 `feat(runtime): 增加结果契约版本标识`。
+
 ## Development Standards
 
 Code style:

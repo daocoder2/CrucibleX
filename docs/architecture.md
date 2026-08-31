@@ -1,5 +1,7 @@
 # CrucibleX Architecture
 
+See [evaluation-principles.md](evaluation-principles.md) for the product-level principles and evolution constraints.
+
 CrucibleX is a clean-slate operator testing toolkit. It keeps the useful ATK lessons, but it does not copy ATK data objects or orchestration shape.
 
 ## First Principles

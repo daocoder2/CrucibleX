@@ -41,6 +41,7 @@ class ResultStore:
     def write_results_csv(self, results: list[ExecutionResult], name: str = "results.csv") -> Path:
         path = self.ensure() / name
         fieldnames = [
+            "result_schema_version",
             "plan_id",
             "case_id",
             "case_name",
@@ -73,6 +74,7 @@ class ResultStore:
 
     def _result_row(self, result: ExecutionResult) -> dict[str, str]:
         return {
+            "result_schema_version": str(result.result_schema_version),
             "plan_id": result.plan_id,
             "case_id": str(result.case_id),
             "case_name": result.case_name,

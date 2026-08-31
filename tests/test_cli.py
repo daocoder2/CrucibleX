@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import yaml
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from cruciblex import __version__
@@ -3111,11 +3112,34 @@ def test_result_store_writes_jsonl_summary_and_manifest(tmp_path):
     assert manifest_path.name == "manifest.json"
     assert loaded.run_id == manifest.run_id
     assert loaded.scheduler == SchedulerKind.RAY
+    assert loaded.manifest_schema_version == 1
+    assert rows[0]["result_schema_version"] == 1
     assert rows[0]["status"] == "passed"
+    assert csv_rows[0]["result_schema_version"] == "1"
     assert csv_rows[0]["status"] == "passed"
     assert csv_rows[0]["plan_id"] == result.plan_id
     assert json.loads(summary_path.read_text(encoding="utf-8")) == {"total": 1, "passed": 1, "failed": 0}
 
+
+def test_result_store_accepts_legacy_rows_and_rejects_future_schema(tmp_path):
+    store = ResultStore(tmp_path)
+    legacy = {
+        "plan_id": "legacy:cpu:0:run",
+        "case_id": 1,
+        "case_name": "legacy",
+        "node_name": "cpu",
+        "backend": "cpu",
+        "device_id": 0,
+        "task": "run",
+        "status": "passed",
+    }
+    (tmp_path / "results.jsonl").write_text(json.dumps(legacy) + "\n", encoding="utf-8")
+    assert store.read_results_jsonl()[0].result_schema_version == 1
+
+    future = dict(legacy, result_schema_version=2)
+    (tmp_path / "results.jsonl").write_text(json.dumps(future) + "\n", encoding="utf-8")
+    with pytest.raises(ValidationError):
+        store.read_results_jsonl()
 
 
 def test_run_context_projects_to_manifest(tmp_path):
@@ -3135,6 +3159,7 @@ def test_run_context_projects_to_manifest(tmp_path):
         submitted_count=1,
         skipped_count=1,
     )
+    assert manifest.manifest_schema_version == 1
     assert manifest.run_id == context.run_id
     assert manifest.output_root == tmp_path
     assert manifest.ray_address is None
