@@ -146,7 +146,7 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
 
 def _constraint_names(case: CaseSpec) -> list[str]:
     names = list(case.generation.constraints)
-    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose"}:
+    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.layer_norm", "torch.scaled_dot_product_attention"}:
         for name in ("operator_facts", "dtype_policy", "value_policy", "shape_relationships", "operator_contract", "dtype_promotion"):
             if name not in names:
                 names.append(name)

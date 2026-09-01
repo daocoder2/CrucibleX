@@ -193,6 +193,14 @@ def _shape_dims(shape: ShapeSpec | None) -> list[int] | None:
     return None
 
 
+def _positive_pair(value: object, default: int) -> tuple[int, int]:
+    if isinstance(value, int) and value > 0:
+        return value, value
+    if isinstance(value, (list, tuple)) and len(value) == 2 and all(isinstance(item, int) and item > 0 for item in value):
+        return int(value[0]), int(value[1])
+    return default, default
+
+
 def _resolve_shape_relationship(kind: object, source: list[int] | None, target: list[int] | None, relation: dict[object, object]) -> list[int] | None:
     if kind == "rank_range":
         if target is None:
@@ -233,6 +241,10 @@ def _resolve_shape_relationship(kind: object, source: list[int] | None, target: 
         return None
     if kind == "same_rank":
         return target if target is not None and len(target) == len(source) else list(source)
+    if kind == "same_shape_as":
+        return list(source)
+    if kind == "last_dimension_as":
+        return [source[-1]]
     if kind == "same_numel":
         if target:
             prefix = 1
@@ -342,7 +354,7 @@ class OperatorFactsConstraint(ConstraintPlugin):
         if isinstance(library_names, str):
             library_names = [library_names]
         facts: dict[str, object] = {}
-        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose"):
+        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.layer_norm", "torch.scaled_dot_product_attention"):
             library_names = [*library_names, case.operator.name]
         if isinstance(library_names, list):
             for name in library_names:
@@ -405,7 +417,7 @@ class OperatorContractConstraint(ConstraintPlugin):
         parameters = {parameter.name: parameter for parameter in case.parameters if parameter.name}
         resolved = dict(contract)
         family = contract.get("family")
-        input_name = str(contract.get("input", "input"))
+        input_name = str(contract.get("input", "query" if family == "attention" else "input"))
         input_parameter = parameters.get(input_name)
         input_shape = _shape_dims(input_parameter.shape if input_parameter else None)
         dim = _contract_attribute(contract, parameters, "dim")
@@ -457,6 +469,30 @@ class OperatorContractConstraint(ConstraintPlugin):
                 first, second = dim0 % len(output_shape), dim1 % len(output_shape)
                 output_shape[first], output_shape[second] = output_shape[second], output_shape[first]
                 resolved["output_shape"] = output_shape
+                resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+        elif family == "conv" and input_shape is not None:
+            weight_parameter = parameters.get(str(contract.get("weight", "weight")))
+            weight_shape = _shape_dims(weight_parameter.shape if weight_parameter else None)
+            if len(input_shape) == 4 and weight_shape and len(weight_shape) == 4:
+                stride = _positive_pair(_contract_attribute(contract, parameters, "stride"), 1)
+                padding = _positive_pair(_contract_attribute(contract, parameters, "padding"), 0)
+                dilation = _positive_pair(_contract_attribute(contract, parameters, "dilation"), 1)
+                height = (input_shape[2] + 2 * padding[0] - dilation[0] * (weight_shape[2] - 1) - 1) // stride[0] + 1
+                width = (input_shape[3] + 2 * padding[1] - dilation[1] * (weight_shape[3] - 1) - 1) // stride[1] + 1
+                if height > 0 and width > 0:
+                    resolved["output_shape"] = [input_shape[0], weight_shape[0], height, width]
+                    resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+        elif family == "norm" and input_shape is not None:
+            resolved["output_shape"] = list(input_shape)
+            resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+            resolved["normalized_shape"] = input_shape[-1:]
+        elif family == "attention" and input_shape is not None:
+            key_parameter = parameters.get(str(contract.get("key", "key")))
+            value_parameter = parameters.get(str(contract.get("value", "value")))
+            key_shape = _shape_dims(key_parameter.shape if key_parameter else None)
+            value_shape = _shape_dims(value_parameter.shape if value_parameter else None)
+            if len(input_shape) == 4 and key_shape and value_shape and len(key_shape) == 4 and len(value_shape) == 4:
+                resolved["output_shape"] = [input_shape[0], input_shape[1], input_shape[2], value_shape[3]]
                 resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "matmul":
             left = _shape_dims(parameters.get(str(contract.get("left", "input"))).shape if parameters.get(str(contract.get("left", "input"))) else None)

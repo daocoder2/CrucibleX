@@ -143,9 +143,32 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         "contract": {"family": "transpose", "input": "input", "dim0_parameter": "dim0", "dim1_parameter": "dim1", "rank_preserved": True},
         "parameters": {"input": {"dtype_policy": {"library": "floating"}}},
     },
-    "torch.conv2d": {"contract": {"family": "conv", "input": "input", "weight": "weight", "bias": "bias", "attributes": ["stride", "padding", "dilation", "groups"], "shape_formula": "NCHW_OIHW", "runtime_supported": False}},
-    "torch.layer_norm": {"contract": {"family": "norm", "input": "input", "normalized_shape": "normalized_shape", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False}},
-    "torch.scaled_dot_product_attention": {"contract": {"family": "attention", "query": "query", "key": "key", "value": "value", "mask": "attn_mask", "dropout": "dropout_p", "causal": "is_causal", "runtime_supported": False}},
+    "torch.conv2d": {
+        "contract": {"family": "conv", "input": "input", "weight": "weight", "bias": "bias", "attributes": ["stride", "padding", "dilation", "groups"], "shape_formula": "NCHW_OIHW", "runtime_supported": False},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}},
+            "weight": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}, "shape_relationship": {"kind": "dimension_alias", "source": "input", "source_dimension": 1, "dimension": 1}},
+            "bias": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "dimension_alias", "source": "weight", "source_dimension": 0, "dimension": 0}},
+        },
+    },
+    "torch.layer_norm": {
+        "contract": {"family": "norm", "input": "input", "normalized_shape": "normalized_shape", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [2, 4]}},
+            "normalized_shape": {"dtype_policy": {"library": "integer"}, "shape_relationship": {"kind": "last_dimension_as", "source": "input"}},
+            "weight": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_shape_as", "source": "normalized_shape"}},
+            "bias": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_shape_as", "source": "weight"}},
+        },
+    },
+    "torch.scaled_dot_product_attention": {
+        "contract": {"family": "attention", "query": "query", "key": "key", "value": "value", "mask": "attn_mask", "dropout": "dropout_p", "causal": "is_causal", "runtime_supported": False},
+        "parameters": {
+            "query": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}},
+            "key": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_rank", "source": "query"}},
+            "value": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_rank", "source": "key"}},
+            "attn_mask": {"dtype_policy": {"library": "boolean"}},
+        },
+    },
 }
 
 

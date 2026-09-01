@@ -499,3 +499,47 @@ def test_where_reshape_and_transpose_contracts_resolve_output_shapes():
     assert expanded[0].parameters[0].dtypes == ["bool"]
     assert expanded[0].metadata["resolved_operator_contract"]["output_shape"] == [2, 3]
     assert expanded[1].metadata["resolved_operator_contract"]["output_shape"] == [4, 3, 2]
+
+
+def test_conv_norm_attention_facts_generate_legal_shapes_and_contracts():
+    conv = CaseSpec(
+        id=760,
+        operator=OperatorSpec(name="torch.conv2d"),
+        invocation=InvocationSpec(api="torch.conv2d", api_type="function"),
+        parameters=[
+            _parameter("input", [2, 3, 8, 8]),
+            _parameter("weight", [4, 9, 3, 3]),
+            _parameter("bias", [9]),
+        ],
+    )
+    norm = CaseSpec(
+        id=761,
+        operator=OperatorSpec(name="torch.layer_norm"),
+        invocation=InvocationSpec(api="torch.layer_norm", api_type="function"),
+        parameters=[
+            _parameter("input", [2, 3, 4]),
+            _parameter("normalized_shape", [9]),
+            _parameter("weight", [9]),
+            _parameter("bias", [9]),
+        ],
+    )
+    attention = CaseSpec(
+        id=762,
+        operator=OperatorSpec(name="torch.scaled_dot_product_attention"),
+        invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"),
+        parameters=[
+            _parameter("query", [2, 4, 3, 8]),
+            _parameter("key", [2, 4, 5, 8]),
+            _parameter("value", [2, 4, 5, 6]),
+        ],
+    )
+
+    generated = expand_cases([conv, norm, attention])
+
+    assert generated[0].parameters[1].shape.dims == [4, 3, 3, 3]
+    assert generated[0].parameters[2].shape.dims == [4]
+    assert generated[0].metadata["resolved_operator_contract"]["output_shape"] == [2, 4, 6, 6]
+    assert generated[1].parameters[1].shape.dims == [4]
+    assert generated[1].parameters[2].shape.dims == [4]
+    assert generated[1].metadata["resolved_operator_contract"]["output_shape"] == [2, 3, 4]
+    assert generated[2].metadata["resolved_operator_contract"]["output_shape"] == [2, 4, 3, 6]
