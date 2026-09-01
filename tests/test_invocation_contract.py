@@ -72,6 +72,20 @@ def test_numpy_executor_applies_typed_keyword_binding():
     np.testing.assert_array_equal(output, np.asarray([3, 7]))
 
 
+@pytest.mark.parametrize("path", [
+    "examples/cases/torch.group-norm.generated.yaml",
+    "examples/cases/torch.instance-norm.generated.yaml",
+    "examples/cases/torch.gather-3d.generated.yaml",
+    "examples/cases/torch.view.generated.yaml",
+])
+def test_advanced_generated_examples_load_and_expand(path):
+    cases = expand_cases(load_cases(path))
+
+    assert len(cases) == 2
+    assert cases[0].metadata["resolved_operator_contract"]
+    assert cases[1].metadata["expected_invalid"] is True
+
+
 def test_reduction_example_declares_typed_keyword_binding():
     case = load_cases("examples/cases/numpy.sum.yaml")[0]
 
