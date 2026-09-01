@@ -309,7 +309,7 @@ def test_builtin_matmul_facts_alias_inner_dimensions():
 
     assert expanded.parameters[0].dtypes == ["fp32"]
     assert expanded.parameters[1].shape.dims == [3, 4]
-    assert expanded.parameters[1].metadata["resolved_shape_relationship"] == "dimension_alias"
+    assert expanded.parameters[1].metadata["resolved_shape_relationship"] == "matmul_inner_alias"
 
 
 def test_bf16_reference_quantizes_and_special_policy_records_rejection():

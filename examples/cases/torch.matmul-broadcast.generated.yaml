@@ -1,0 +1,11 @@
+# Declarative batched matmul broadcast contract sample.
+cases:
+  - id: 307
+    operator: {name: torch.matmul}
+    invocation: {api: torch.matmul, api_type: function, executor: torch}
+    generator: default
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [1, 2, 3, 4]}}
+      - {name: other, kind: tensor, dtypes: [fp32], shape: {dims: [5, 1, 4, 6]}}
+    generation: {invalid_count: 1}
+    oracle: {comparison: allclose, reference_executor: torch}

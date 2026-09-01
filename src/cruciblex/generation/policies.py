@@ -40,7 +40,7 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
             "input": {"dtype_policy": {"library": "floating"}, "value_policy": {"kind": "matrix_profile", "profile": "well_conditioned"}},
             "other": {
                 "dtype_policy": {"library": "floating"},
-                "shape_relationship": {"kind": "dimension_alias", "source": "input", "source_dimension": 1, "dimension": 0},
+                "shape_relationship": {"kind": "matmul_inner_alias", "source": "input"},
                 "value_policy": {"kind": "matrix_profile", "profile": "well_conditioned"},
             },
         },

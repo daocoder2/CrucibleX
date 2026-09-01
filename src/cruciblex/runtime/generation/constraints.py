@@ -262,6 +262,11 @@ def _resolve_shape_relationship(kind: object, source: list[int] | None, target: 
         return None
     if kind == "same_rank":
         return target if target is not None and len(target) == len(source) else list(source)
+    if kind == "matmul_inner_alias":
+        if target is None or len(target) < 2 or len(source) < 2:
+            return None
+        target[-2] = source[-1]
+        return target
     if kind == "dimension_aliases":
         if target is None:
             return None

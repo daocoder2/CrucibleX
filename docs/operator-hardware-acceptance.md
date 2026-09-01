@@ -28,6 +28,7 @@
 | instance_norm contract | `examples/cases/torch.instance-norm.generated.yaml` | generation/contract | channel/affine/eps and invalid mutation sample |
 | gather 3D contract | `examples/cases/torch.gather-3d.generated.yaml` | generation/contract | rank/non-index extent predicate and invalid sample |
 | view contract | `examples/cases/torch.view.generated.yaml` | generation/contract | contiguous requirement and non-contiguous invalid sample |
+| matmul broadcast contract | `examples/cases/torch.matmul-broadcast.generated.yaml` | generation/contract | batched matmul batch broadcast and invalid sample |
 
 ## Required Gate Lanes
 

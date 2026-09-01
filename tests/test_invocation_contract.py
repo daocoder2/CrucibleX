@@ -77,6 +77,7 @@ def test_numpy_executor_applies_typed_keyword_binding():
     "examples/cases/torch.instance-norm.generated.yaml",
     "examples/cases/torch.gather-3d.generated.yaml",
     "examples/cases/torch.view.generated.yaml",
+    "examples/cases/torch.matmul-broadcast.generated.yaml",
 ])
 def test_advanced_generated_examples_load_and_expand(path):
     cases = expand_cases(load_cases(path))
@@ -91,6 +92,11 @@ def test_advanced_generated_examples_load_and_expand(path):
         assert invalid_contract["valid_view"] is False
         assert invalid_contract["view_failure_reason"] == "input_not_contiguous"
         assert "output_shape" not in invalid_contract
+    if path.endswith("torch.matmul-broadcast.generated.yaml"):
+        contract = cases[0].metadata["resolved_operator_contract"]
+        assert contract["valid_batch_broadcast"] is True
+        assert contract["batch_shape"] == [5, 2]
+        assert contract["output_shape"] == [5, 2, 3, 6]
 
 
 def test_reduction_example_declares_typed_keyword_binding():
