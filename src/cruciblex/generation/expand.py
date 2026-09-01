@@ -123,6 +123,13 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
             invalid_shape = list(weight.shape.dims)
             invalid_shape[1] = max(1, invalid_shape[1] + 1)
             mutations.append((str(contract.get("weight", "weight")), invalid_shape, "conv_channel_mismatch"))
+        groups_name = str(contract.get("groups", "groups"))
+        groups = parameters.get(groups_name)
+        if groups and isinstance(groups.values, int):
+            mutations.append((groups_name, max(2, int(groups.values) + 1), "conv_groups_non_divisible"))
+        for name, value, reason in (("stride", [0, 1], "conv_zero_stride"), ("padding", [-1, 0], "conv_negative_padding"), ("dilation", [0, 1], "conv_zero_dilation")):
+            if name in parameters:
+                mutations.append((name, value, reason))
     if family == "norm":
         normalized_name = contract.get("normalized_shape", "normalized_shape")
         normalized = parameters.get(str(normalized_name)) or parameters.get("normalized_shape")
