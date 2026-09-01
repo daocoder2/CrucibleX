@@ -78,6 +78,9 @@ def test_numpy_executor_applies_typed_keyword_binding():
     "examples/cases/torch.gather-3d.generated.yaml",
     "examples/cases/torch.view.generated.yaml",
     "examples/cases/torch.matmul-broadcast.generated.yaml",
+    "examples/cases/torch.conv2d.generated.yaml",
+    "examples/cases/torch.layer-norm.generated.yaml",
+    "examples/cases/torch.attention.generated.yaml",
     "examples/cases/torch.add.fixed-hardware.yaml",
 ])
 def test_advanced_generated_examples_load_and_expand(path):
@@ -102,6 +105,21 @@ def test_advanced_generated_examples_load_and_expand(path):
         assert contract["valid_batch_broadcast"] is True
         assert contract["batch_shape"] == [5, 2]
         assert contract["output_shape"] == [5, 2, 3, 6]
+
+
+@pytest.mark.parametrize(("path", "names"), [
+    ("examples/cases/torch.conv2d.generated.yaml", ["input", "weight", "bias", "stride", "padding", "dilation", "groups"]),
+    ("examples/cases/torch.layer-norm.generated.yaml", ["input", "normalized_shape", "weight", "bias", "eps"]),
+    ("examples/cases/torch.attention.generated.yaml", ["query", "key", "value", "attn_mask", "dropout_p", "is_causal"]),
+])
+def test_complex_operator_examples_bind_torch_parameters_by_name(path, names):
+    case = expand_cases(load_cases(path))[0]
+    request = ExecutionRequest(case=case, inputs=list(range(len(names))), plan=None, role=ExecutionRole.CANDIDATE)
+
+    args, kwargs = request.call_arguments(request.inputs)
+
+    assert args == []
+    assert kwargs == dict(zip(names, range(len(names)), strict=True))
 
 
 @pytest.mark.parametrize(("path", "valid_id", "invalid_reasons"), [

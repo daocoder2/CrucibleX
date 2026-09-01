@@ -2,7 +2,11 @@
 cases:
   - id: 302
     operator: {name: torch.layer_norm}
-    invocation: {api: torch.layer_norm, api_type: function, executor: torch}
+    invocation:
+      api: torch.layer_norm
+      api_type: function
+      executor: torch
+      binding: {mode: keyword, names: [input, normalized_shape, weight, bias, eps]}
     generator: default
     parameters:
       - name: input

@@ -2,7 +2,11 @@
 cases:
   - id: 301
     operator: {name: torch.conv2d}
-    invocation: {api: torch.conv2d, api_type: function, executor: torch}
+    invocation:
+      api: torch.conv2d
+      api_type: function
+      executor: torch
+      binding: {mode: keyword, names: [input, weight, bias, stride, padding, dilation, groups]}
     generator: default
     parameters:
       - name: input
