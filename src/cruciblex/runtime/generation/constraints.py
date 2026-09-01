@@ -164,7 +164,7 @@ class ShapeRelationshipsConstraint(ConstraintPlugin):
         updated: list[ParameterSpec] = []
         for parameter in case.parameters:
             relation = parameter.metadata.get("shape_relationship")
-            if not isinstance(relation, dict) or parameter.shape is None:
+            if not isinstance(relation, dict):
                 updated.append(parameter)
                 continue
             source_name = relation.get("source")
@@ -172,7 +172,20 @@ class ShapeRelationshipsConstraint(ConstraintPlugin):
             source_dims = _shape_dims(source.shape if source else None)
             target_dims = _shape_dims(parameter.shape)
             kind = relation.get("kind")
-            resolved = _resolve_shape_relationship(kind, source_dims, target_dims, relation)
+            if kind == "attention_mask" and source_dims:
+                key = parameters.get(str(relation.get("key", "key")))
+                key_dims = _shape_dims(key.shape if key else None)
+                resolved = [source_dims[0], source_dims[1], source_dims[2], key_dims[2]] if key_dims and len(source_dims) == 4 and len(key_dims) == 4 else target_dims
+            elif kind == "last_dimension_as" and source_dims and parameter.kind in {ParameterKind.ATTRIBUTE, ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE}:
+                resolved = [source_dims[-1]]
+            elif kind == "conv_weight_channels" and source_dims and target_dims:
+                groups = parameters.get(str(relation.get("groups", "groups")))
+                group_value = groups.values if groups else 1
+                group_value = int(group_value) if isinstance(group_value, int) and group_value > 0 else 1
+                resolved = list(target_dims)
+                resolved[int(relation.get("dimension", 1)) % len(resolved)] = source_dims[int(relation.get("source_dimension", 1)) % len(source_dims)] // group_value
+            else:
+                resolved = _resolve_shape_relationship(kind, source_dims, target_dims, relation)
             metadata = dict(parameter.metadata)
             if resolved is not None:
                 metadata["resolved_shape_relationship"] = str(kind)
@@ -463,7 +476,22 @@ class OperatorContractConstraint(ConstraintPlugin):
             elif mode == "select":
                 resolved["output_shape"] = [value for position, value in enumerate(input_shape) if position != index_dim % len(input_shape)]
         elif family in {"where", "masked_fill"} and input_shape is not None:
-            resolved["output_shape"] = list(input_shape)
+            shapes = [input_shape]
+            if family == "where":
+                names = (contract.get("condition", "condition"), contract.get("other", "other"))
+            else:
+                names = (contract.get("mask", "mask"),)
+            for name in names:
+                parameter = parameters.get(str(name))
+                shape = _shape_dims(parameter.shape if parameter else None)
+                if shape is not None:
+                    shapes.append(shape)
+            output_shape = shapes[0]
+            for shape in shapes[1:]:
+                output_shape = _broadcast_item_shape(output_shape, shape)
+            if output_shape:
+                resolved["output_shape"] = output_shape
+                resolved["broadcast_shape"] = output_shape
             resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "reshape" and input_shape is not None:
             target = _contract_attribute(contract, parameters, "shape")

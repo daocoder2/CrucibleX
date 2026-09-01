@@ -118,7 +118,7 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
     "torch.where": {
         "contract": {"family": "where", "condition": "condition", "input": "input", "other": "other"},
         "parameters": {
-            "condition": {"dtypes": ["bool"], "dtype_policy": {"library": "boolean"}},
+            "condition": {"dtypes": ["bool"], "dtype_policy": {"library": "boolean"}, "shape_policy": {"broadcast_group": "where"}},
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"broadcast_group": "where"}},
             "other": {"dtype_policy": {"library": "floating"}, "shape_policy": {"broadcast_group": "where"}},
         },
@@ -147,7 +147,7 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         "contract": {"family": "conv", "input": "input", "weight": "weight", "bias": "bias", "attributes": ["stride", "padding", "dilation", "groups"], "shape_formula": "NCHW_OIHW", "runtime_supported": False},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}},
-            "weight": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}, "shape_relationship": {"kind": "dimension_alias", "source": "input", "source_dimension": 1, "dimension": 1}},
+            "weight": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}, "shape_relationship": {"kind": "conv_weight_channels", "source": "input", "source_dimension": 1, "dimension": 1, "groups": "groups"}},
             "bias": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "dimension_alias", "source": "weight", "source_dimension": 0, "dimension": 0}},
         },
     },
@@ -166,7 +166,7 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
             "query": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}},
             "key": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "dimension_aliases", "source": "query", "aliases": [{"source_dimension": 0, "dimension": 0}, {"source_dimension": 1, "dimension": 1}, {"source_dimension": 3, "dimension": 3}]}},
             "value": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "dimension_aliases", "source": "key", "aliases": [{"source_dimension": 0, "dimension": 0}, {"source_dimension": 1, "dimension": 1}, {"source_dimension": 2, "dimension": 2}]}},
-            "attn_mask": {"dtype_policy": {"library": "boolean"}},
+            "attn_mask": {"dtype_policy": {"library": "boolean"}, "shape_relationship": {"kind": "attention_mask", "source": "query", "key": "key"}},
         },
     },
 }

@@ -554,6 +554,17 @@ def test_conv_norm_attention_facts_generate_legal_shapes_and_contracts():
     assert generated[2].metadata["resolved_operator_contract"]["output_shape"] == [2, 4, 3, 6]
 
 
+def test_conv_groups_and_attention_mask_are_generated_from_shape_contracts():
+    conv = CaseSpec(id=775, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), parameters=[_parameter("input", [1, 4, 7, 7]), _parameter("weight", [6, 9, 3, 3]), ParameterSpec(name="groups", kind=ParameterKind.ATTRIBUTE, values=2)])
+    generated_conv = expand_cases([conv])[0]
+    assert generated_conv.parameters[1].shape.dims == [6, 2, 3, 3]
+
+    attention = CaseSpec(id=776, operator=OperatorSpec(name="torch.scaled_dot_product_attention"), invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"), parameters=[_parameter("query", [2, 3, 4, 5]), _parameter("key", [2, 3, 6, 5]), _parameter("value", [2, 3, 6, 7]), ParameterSpec(name="attn_mask", kind=ParameterKind.TENSOR, dtypes=["bool"], shape=ShapeSpec(dims=[1, 1, 1, 1]))])
+    generated_attention = expand_cases([attention])[0]
+    assert generated_attention.parameters[3].shape.dims == [2, 3, 4, 6]
+    assert generated_attention.parameters[3].dtypes == ["bool"]
+
+
 def test_attention_dimension_aliases_and_norm_attribute_invalid_generation():
     attention = CaseSpec(id=773, operator=OperatorSpec(name="torch.scaled_dot_product_attention"), invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"), generation=GenerationSpec(), parameters=[_parameter("query", [2, 3, 4, 5]), _parameter("key", [9, 8, 7, 6]), _parameter("value", [9, 8, 7, 6])])
     generated = expand_cases([attention])[0]
