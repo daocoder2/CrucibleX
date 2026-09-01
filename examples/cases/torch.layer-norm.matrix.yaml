@@ -1,0 +1,33 @@
+# Named layer_norm legal and negative contract matrix.
+cases:
+  - id: 920
+    operator: {name: torch.layer_norm}
+    invocation: {api: torch.layer_norm, api_type: function, executor: torch}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 4, 5]}}
+      - {name: normalized_shape, kind: tensor, dtypes: [int64], shape: {dims: [4, 5]}, values: [4, 5]}
+      - {name: weight, kind: tensor, dtypes: [fp32], shape: {dims: [4, 5]}}
+      - {name: bias, kind: tensor, dtypes: [fp32], shape: {dims: [4, 5]}}
+  - id: 921
+    operator: {name: torch.layer_norm}
+    invocation: {api: torch.layer_norm, api_type: function, executor: torch}
+    metadata: {expected_invalid: true, expected_failure_reason: normalized_shape_mismatch}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 4, 5]}}
+      - {name: normalized_shape, kind: attribute_tuple, dtypes: [int64], values: [4, 6]}
+  - id: 922
+    operator: {name: torch.layer_norm}
+    invocation: {api: torch.layer_norm, api_type: function, executor: torch}
+    metadata: {expected_invalid: true, expected_failure_reason: norm_weight_shape_mismatch}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 4, 5]}}
+      - {name: normalized_shape, kind: tensor, dtypes: [int64], shape: {dims: [4, 5]}, values: [4, 5]}
+      - {name: weight, kind: tensor, dtypes: [fp32], shape: {dims: [5]}}
+  - id: 923
+    operator: {name: torch.layer_norm}
+    invocation: {api: torch.layer_norm, api_type: function, executor: torch}
+    metadata: {expected_invalid: true, expected_failure_reason: norm_eps_not_positive}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 4, 5]}}
+      - {name: normalized_shape, kind: tensor, dtypes: [int64], shape: {dims: [4, 5]}, values: [4, 5]}
+      - {name: eps, kind: attribute, dtypes: [fp32], values: 0.0}

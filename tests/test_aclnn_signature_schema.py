@@ -116,6 +116,17 @@ def test_capability_matrix_documents_supported_lifecycle_and_native_abi_boundari
         runtime.validate_capabilities(unsupported)
 
 
+def test_preflight_rejects_storage_offset_independently():
+    spec = AclnnOpSpec(
+        op_name="Offset",
+        inputs=(AclnnArg(name="input", storage_offset=1),),
+        outputs=(AclnnArg(name="output", role="output"),),
+    )
+
+    with pytest.raises(ExecutionNotSupportedError, match="non-zero tensor storage_offset"):
+        AclnnRuntime().validate_capabilities(spec)
+
+
 def test_schema_preserves_tensor_list_and_optional_declarations_before_preflight():
     spec = op_spec_from_case(_case({
         "inputs": [

@@ -104,6 +104,27 @@ def test_advanced_generated_examples_load_and_expand(path):
         assert contract["output_shape"] == [5, 2, 3, 6]
 
 
+@pytest.mark.parametrize(("path", "valid_id", "invalid_reasons"), [
+    ("examples/cases/torch.conv2d.matrix.yaml", 910, {911: "conv_groups_invalid", 912: "conv_effective_kernel_exceeds_input", 913: "conv_stride_invalid"}),
+    ("examples/cases/torch.layer-norm.matrix.yaml", 920, {921: "normalized_shape_mismatch", 922: "norm_weight_shape_mismatch", 923: "norm_eps_not_positive"}),
+    ("examples/cases/torch.attention.matrix.yaml", 930, {931: "dropout_out_of_range", 932: "attention_mask_broadcast_mismatch"}),
+])
+def test_named_complex_operator_matrix_preserves_explicit_negative_cases(path, valid_id, invalid_reasons):
+    cases = {case.id: case for case in expand_cases(load_cases(path))}
+
+    assert cases[valid_id].metadata["resolved_operator_contract"]["output_shape"]
+    for case_id, failure_reason in invalid_reasons.items():
+        case = cases[case_id]
+        contract = case.metadata["resolved_operator_contract"]
+        assert case.metadata["expected_invalid"] is True
+        assert "output_shape" not in contract
+        assert failure_reason in {
+            contract.get("conv_failure_reason"),
+            contract.get("norm_failure_reason"),
+            contract.get("attention_failure_reason"),
+        }
+
+
 def test_reduction_example_declares_typed_keyword_binding():
     case = load_cases("examples/cases/numpy.sum.yaml")[0]
 

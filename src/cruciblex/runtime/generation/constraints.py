@@ -718,6 +718,16 @@ class OperatorContractConstraint(ConstraintPlugin):
                     resolved["attention_failure_reason"] = "dropout_out_of_range"
                 elif not valid_causal_mask:
                     resolved["attention_failure_reason"] = "causal_mask_conflict"
+                elif not resolved["qk_embedding_compatible"]:
+                    resolved["attention_failure_reason"] = "attention_embedding_mismatch"
+                elif not resolved["kv_sequence_compatible"]:
+                    resolved["attention_failure_reason"] = "attention_sequence_mismatch"
+                elif not resolved["batch_compatible"]:
+                    resolved["attention_failure_reason"] = "attention_batch_mismatch"
+                elif not resolved["head_compatible"]:
+                    resolved["attention_failure_reason"] = "attention_head_mismatch"
+                elif not resolved["mask_broadcast_compatible"]:
+                    resolved["attention_failure_reason"] = "attention_mask_broadcast_mismatch"
                 if resolved["valid_attention"]:
                     resolved["output_shape"] = [input_shape[0], input_shape[1], input_shape[2], value_shape[3]]
                     resolved["output_dtype"] = _contract_dtype(contract, input_parameter)

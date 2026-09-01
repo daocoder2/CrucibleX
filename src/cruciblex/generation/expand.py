@@ -30,7 +30,11 @@ def _apply_constraints(case: CaseSpec, index: int, count: int, invalid: bool, in
         source_case_id=case.id,
     )
     generated = _generated_case(case, index, count, invalid=invalid, invalid_index=invalid_index)
+    explicit_invalid = bool(case.metadata.get("expected_invalid"))
     for constraint_name in _constraint_names(generated):
+        # Explicit negative fixtures must preserve their declared malformed shapes.
+        if explicit_invalid and constraint_name == "shape_relationships":
+            continue
         constraint = CONSTRAINT_REGISTRY.resolve(constraint_name)
         parameters = [
             constraint.after_parameter(parameter, context)

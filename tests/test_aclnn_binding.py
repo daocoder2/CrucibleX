@@ -56,3 +56,12 @@ def test_required_aclnn_argument_cannot_be_omitted():
 
     with pytest.raises(ValueError, match="required ACLNN argument"):
         AclnnFunctionAdapter(runtime).execute(request)
+
+
+def test_required_aclnn_attribute_cannot_be_omitted():
+    runtime = CaptureRuntime()
+    request = _request(optional=False)
+    request.case.invocation.metadata["binding"] = {"omit": ["alpha"]}
+
+    with pytest.raises(ValueError, match="required ACLNN attribute"):
+        AclnnFunctionAdapter(runtime).execute(request)

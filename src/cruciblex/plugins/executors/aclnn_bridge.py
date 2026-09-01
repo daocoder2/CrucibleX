@@ -481,13 +481,17 @@ class AclnnFunctionAdapter:
                 continue
             selected_inputs.append(argument)
             selected_values.append(value)
-        selected_attributes = tuple(
-            argument for argument in spec.attributes if argument.name not in omitted_names
-        )
+        selected_attributes = []
+        for argument in spec.attributes:
+            if argument.name in omitted_names:
+                if not argument.optional:
+                    raise ValueError(f"cannot omit required ACLNN attribute: {argument.name}")
+                continue
+            selected_attributes.append(argument)
         spec = AclnnOpSpec(
             op_name=spec.op_name,
             inputs=tuple(selected_inputs),
-            attributes=selected_attributes,
+            attributes=tuple(selected_attributes),
             outputs=spec.outputs,
         )
         return self.runtime.run(spec, selected_values)
