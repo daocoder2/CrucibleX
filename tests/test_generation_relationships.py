@@ -584,6 +584,31 @@ def test_attention_dimension_aliases_and_norm_attribute_invalid_generation():
     assert invalid.parameters[1].values == [5]
 
 
+def test_matmul_contract_distinguishes_broadcast_and_bmm_batch_rules():
+    def case(case_id: int, left: list[int], right: list[int], batch_mode: str = "broadcast") -> CaseSpec:
+        return CaseSpec(
+            id=case_id,
+            operator=OperatorSpec(name="custom.matmul"),
+            invocation=InvocationSpec(api="torch.matmul", api_type="function"),
+            generation=GenerationSpec(metadata={"operator_facts": {"contract": {"family": "matmul", "left": "input", "right": "other", "output_dtype": "input", "batch_mode": batch_mode}}}),
+            parameters=[_parameter("input", left), _parameter("other", right)],
+        )
+
+    broadcast = expand_cases([case(785, [1, 2, 3, 4], [5, 1, 4, 6])])[0].metadata["resolved_operator_contract"]
+    mismatch = expand_cases([case(786, [2, 3, 4], [5, 4, 6])])[0].metadata["resolved_operator_contract"]
+    bmm_mismatch = expand_cases([case(787, [1, 2, 4], [3, 4, 6], "equal")])[0].metadata["resolved_operator_contract"]
+
+    assert broadcast["valid_matmul"] is True
+    assert broadcast["batch_shape"] == [5, 2]
+    assert broadcast["output_shape"] == [5, 2, 3, 6]
+    assert mismatch["valid_batch_broadcast"] is False
+    assert mismatch["matmul_failure_reason"] == "batch_broadcast_mismatch"
+    assert "output_shape" not in mismatch
+    assert bmm_mismatch["valid_batch_broadcast"] is False
+    assert bmm_mismatch["matmul_failure_reason"] == "batch_dimensions_mismatch"
+    assert "output_shape" not in bmm_mismatch
+
+
 def test_reduce_contract_validates_multi_dim_negative_and_duplicate_dimensions():
     def case(case_id: int, dim: object, keepdim: bool = False) -> CaseSpec:
         return CaseSpec(

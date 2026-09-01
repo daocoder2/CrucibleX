@@ -586,8 +586,29 @@ class OperatorContractConstraint(ConstraintPlugin):
             left = _shape_dims(parameters.get(str(contract.get("left", "input"))).shape if parameters.get(str(contract.get("left", "input"))) else None)
             right = _shape_dims(parameters.get(str(contract.get("right", "other"))).shape if parameters.get(str(contract.get("right", "other"))) else None)
             if left and right and len(left) >= 2 and len(right) >= 2:
-                resolved["batch_shape"] = _broadcast_dims(left[:-2], right[:-2])
+                left_batch, right_batch = left[:-2], right[:-2]
+                batch_mode = contract.get("batch_mode", "broadcast")
+                if batch_mode == "equal":
+                    valid_batch = len(left_batch) == len(right_batch) and left_batch == right_batch
+                    batch_shape = list(left_batch) if valid_batch else []
+                    batch_failure = None if valid_batch else "batch_dimensions_mismatch"
+                else:
+                    valid_batch, batch_shape = _broadcast_shape(left_batch, right_batch)
+                    batch_failure = None if valid_batch else "batch_broadcast_mismatch"
+                valid_inner = left[-1] == right[-2]
+                resolved["batch_mode"] = batch_mode
+                resolved["valid_batch_broadcast"] = valid_batch
+                resolved["valid_inner_dimension"] = valid_inner
                 resolved["inner_dimension"] = left[-1]
+                resolved["batch_shape"] = batch_shape
+                resolved["valid_matmul"] = valid_batch and valid_inner
+                if not valid_inner:
+                    resolved["matmul_failure_reason"] = "inner_dimension_mismatch"
+                elif batch_failure is not None:
+                    resolved["matmul_failure_reason"] = batch_failure
+                if resolved["valid_matmul"]:
+                    resolved["output_shape"] = [*batch_shape, left[-2], right[-1]]
+                    resolved["output_dtype"] = _contract_dtype(contract, parameters.get(str(contract.get("left", "input"))))
         metadata = dict(case.metadata)
         metadata["resolved_operator_contract"] = resolved
         return case.model_copy(update={"metadata": metadata})
@@ -627,11 +648,21 @@ def _reduce_shape(shape: list[int], dimensions: list[int], keepdim: bool) -> lis
     return [1 if index in selected and keepdim else value for index, value in enumerate(shape) if keepdim or index not in selected]
 
 
-def _broadcast_dims(left: list[int], right: list[int]) -> list[int]:
+def _broadcast_shape(left: list[int], right: list[int]) -> tuple[bool, list[int]]:
     width = max(len(left), len(right))
-    left = [1] * (width - len(left)) + left
-    right = [1] * (width - len(right)) + right
-    return [max(first, second) if first in {1, second} or second == 1 else 1 for first, second in zip(left, right, strict=True)]
+    padded_left = [1] * (width - len(left)) + left
+    padded_right = [1] * (width - len(right)) + right
+    output: list[int] = []
+    for first, second in zip(padded_left, padded_right, strict=True):
+        if first == second or first == 1 or second == 1:
+            output.append(max(first, second))
+        else:
+            return False, []
+    return True, output
+
+
+def _broadcast_dims(left: list[int], right: list[int]) -> list[int]:
+    return _broadcast_shape(left, right)[1]
 
 
 class DtypePolicyConstraint(ConstraintPlugin):
