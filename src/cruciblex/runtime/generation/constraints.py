@@ -599,6 +599,16 @@ class OperatorContractConstraint(ConstraintPlugin):
                 resolved["valid_groups"] = valid_groups
                 resolved["effective_kernel"] = effective_kernel
                 resolved["valid_geometry"] = valid_geometry
+                if not valid_groups:
+                    resolved["conv_failure_reason"] = "conv_groups_invalid"
+                elif not valid_stride:
+                    resolved["conv_failure_reason"] = "conv_stride_invalid"
+                elif not valid_padding:
+                    resolved["conv_failure_reason"] = "conv_padding_invalid"
+                elif not valid_dilation:
+                    resolved["conv_failure_reason"] = "conv_dilation_invalid"
+                elif not valid_geometry:
+                    resolved["conv_failure_reason"] = "conv_effective_kernel_exceeds_input"
                 height = (input_shape[2] + 2 * padding[0] - effective_kernel[0]) // stride[0] + 1
                 width = (input_shape[3] + 2 * padding[1] - effective_kernel[1]) // stride[1] + 1
                 if height > 0 and width > 0 and valid_groups and valid_geometry:

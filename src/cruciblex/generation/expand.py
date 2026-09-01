@@ -134,7 +134,8 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
         groups_name = str(contract.get("groups", "groups"))
         groups = parameters.get(groups_name)
         if groups and isinstance(groups.values, int):
-            mutations.append((groups_name, max(2, int(groups.values) + 1), "conv_groups_non_divisible"))
+            mutations.append((groups_name, 0, "conv_groups_not_positive"))
+            mutations.append((groups_name, input_shape[1] + 1, "conv_groups_non_divisible"))
         for name, value, reason in (("stride", [0, 1], "conv_zero_stride"), ("padding", [-1, 0], "conv_negative_padding"), ("dilation", [0, 1], "conv_zero_dilation")):
             if name in parameters:
                 mutations.append((name, value, reason))
@@ -236,7 +237,7 @@ def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> Cas
         "valid_attention", "qk_embedding_compatible", "kv_sequence_compatible",
         "dropout_p", "is_causal", "valid_dropout", "valid_causal_mask", "attention_failure_reason",
         "batch_compatible", "head_compatible", "mask_shape", "mask_broadcast_compatible",
-        "valid_groups", "effective_kernel", "valid_geometry",
+        "valid_groups", "effective_kernel", "valid_geometry", "conv_failure_reason",
         "view_requires_contiguous", "input_contiguous", "valid_view", "view_failure_reason",
         "valid_reduce_dims", "reduced_dimensions", "reduce_failure_reason",
         "batch_mode", "valid_batch_broadcast", "valid_inner_dimension", "inner_dimension",

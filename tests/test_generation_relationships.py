@@ -741,7 +741,17 @@ def test_invalid_conv_contract_does_not_emit_output_shape():
     case = CaseSpec(id=778, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), generation=GenerationSpec(), parameters=[_parameter("input", [1, 3, 5, 5]), _parameter("weight", [4, 2, 3, 3]), ParameterSpec(name="groups", kind=ParameterKind.ATTRIBUTE, values=2)])
     contract = expand_cases([case])[0].metadata["resolved_operator_contract"]
     assert contract["valid_groups"] is False
+    assert contract["conv_failure_reason"] == "conv_groups_invalid"
     assert "output_shape" not in contract
+
+
+def test_conv_invalid_groups_are_not_relegalized():
+    case = CaseSpec(id=800, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), generation=GenerationSpec(invalid_count=2), parameters=[_parameter("input", [1, 4, 5, 5]), _parameter("weight", [4, 1, 3, 3]), ParameterSpec(name="groups", kind=ParameterKind.ATTRIBUTE, values=2)])
+    invalid = expand_cases([case])[1:]
+
+    assert invalid[0].metadata["resolved_operator_contract"]["conv_failure_reason"] == "conv_groups_invalid"
+    assert invalid[1].metadata["resolved_operator_contract"]["conv_failure_reason"] == "conv_groups_invalid"
+    assert all("output_shape" not in item.metadata["resolved_operator_contract"] for item in invalid)
 
 
 def test_attention_contract_reports_each_compatibility_dimension():
