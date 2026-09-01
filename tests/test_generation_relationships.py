@@ -584,6 +584,30 @@ def test_attention_dimension_aliases_and_norm_attribute_invalid_generation():
     assert invalid.parameters[1].values == [5]
 
 
+def test_reduce_contract_validates_multi_dim_negative_and_duplicate_dimensions():
+    def case(case_id: int, dim: object, keepdim: bool = False) -> CaseSpec:
+        return CaseSpec(
+            id=case_id,
+            operator=OperatorSpec(name="torch.sum"),
+            invocation=InvocationSpec(api="torch.sum", api_type="function"),
+            parameters=[_parameter("input", [2, 3, 4]), ParameterSpec(name="dim", kind=ParameterKind.ATTRIBUTE_TUPLE, dtypes=["int64"], values=dim), ParameterSpec(name="keepdim", kind=ParameterKind.ATTRIBUTE, dtypes=["bool"], values=keepdim)],
+        )
+
+    legal = expand_cases([case(782, [-1, 0], True)])[0].metadata["resolved_operator_contract"]
+    duplicate = expand_cases([case(783, [0, -3])])[0].metadata["resolved_operator_contract"]
+    out_of_range = expand_cases([case(784, [3])])[0].metadata["resolved_operator_contract"]
+
+    assert legal["valid_reduce_dims"] is True
+    assert legal["reduced_dimensions"] == [2, 0]
+    assert legal["output_shape"] == [1, 3, 1]
+    assert duplicate["valid_reduce_dims"] is False
+    assert duplicate["reduce_failure_reason"] == "duplicate_reduce_dim"
+    assert "output_shape" not in duplicate
+    assert out_of_range["valid_reduce_dims"] is False
+    assert out_of_range["reduce_failure_reason"] == "reduce_dim_out_of_range"
+    assert "output_shape" not in out_of_range
+
+
 def test_view_contract_distinguishes_contiguous_and_non_contiguous_inputs():
     contiguous = CaseSpec(
         id=780,

@@ -449,8 +449,14 @@ class OperatorContractConstraint(ConstraintPlugin):
         input_shape = _shape_dims(input_parameter.shape if input_parameter else None)
         dim = _contract_attribute(contract, parameters, "dim")
         if family == "reduce" and input_shape is not None:
-            resolved["output_shape"] = _reduce_shape(input_shape, dim, bool(_contract_attribute(contract, parameters, "keepdim")))
-            resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+            valid_dims, reduced_dimensions, failure_reason = _resolve_reduction_dimensions(dim, len(input_shape))
+            resolved["valid_reduce_dims"] = valid_dims
+            resolved["reduced_dimensions"] = reduced_dimensions
+            if failure_reason is not None:
+                resolved["reduce_failure_reason"] = failure_reason
+            if valid_dims:
+                resolved["output_shape"] = _reduce_shape(input_shape, reduced_dimensions, bool(_contract_attribute(contract, parameters, "keepdim")))
+                resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "sort" and input_shape is not None:
             resolved["output_shape"] = list(input_shape)
             resolved["values_dtype"] = _contract_dtype(contract, input_parameter)
@@ -602,9 +608,22 @@ def _contract_dtype(contract: dict[str, object], parameter: ParameterSpec | None
     return str(selected) if isinstance(selected, str) else None
 
 
-def _reduce_shape(shape: list[int], dim: object, keepdim: bool) -> list[int]:
-    dimensions = range(len(shape)) if dim is None else ([dim] if isinstance(dim, int) else dim)
-    selected = {int(item) % len(shape) for item in dimensions if isinstance(item, int)}
+def _resolve_reduction_dimensions(dim: object, rank: int) -> tuple[bool, list[int], str | None]:
+    if dim is None:
+        return True, list(range(rank)), None
+    dimensions = [dim] if isinstance(dim, int) else list(dim) if isinstance(dim, (list, tuple)) else []
+    if not dimensions or not all(isinstance(item, int) for item in dimensions):
+        return False, [], "invalid_reduce_dim_type"
+    if any(item < -rank or item >= rank for item in dimensions):
+        return False, [], "reduce_dim_out_of_range"
+    normalized = [item % rank for item in dimensions]
+    if len(set(normalized)) != len(normalized):
+        return False, normalized, "duplicate_reduce_dim"
+    return True, normalized, None
+
+
+def _reduce_shape(shape: list[int], dimensions: list[int], keepdim: bool) -> list[int]:
+    selected = set(dimensions)
     return [1 if index in selected and keepdim else value for index, value in enumerate(shape) if keepdim or index not in selected]
 
 
