@@ -738,6 +738,30 @@ def test_attention_contract_reports_each_compatibility_dimension():
     assert contract["valid_attention"] is True
 
 
+def test_attention_contract_validates_dropout_and_causal_mask_conflict():
+    def attribute(name: str, value: object) -> ParameterSpec:
+        return ParameterSpec(name=name, kind=ParameterKind.ATTRIBUTE, dtypes=["fp32"], values=value)
+
+    base = [
+        _parameter("query", [1, 2, 3, 4]),
+        _parameter("key", [1, 2, 5, 4]),
+        _parameter("value", [1, 2, 5, 6]),
+    ]
+    valid = expand_cases([CaseSpec(id=797, operator=OperatorSpec(name="torch.scaled_dot_product_attention"), invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"), parameters=[*base, attribute("dropout_p", 0.2), attribute("is_causal", False)])])[0].metadata["resolved_operator_contract"]
+    bad_dropout = expand_cases([CaseSpec(id=798, operator=OperatorSpec(name="torch.scaled_dot_product_attention"), invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"), parameters=[*base, attribute("dropout_p", 2.0)])])[0].metadata["resolved_operator_contract"]
+    conflict = expand_cases([CaseSpec(id=799, operator=OperatorSpec(name="torch.scaled_dot_product_attention"), invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"), parameters=[*base, _parameter("attn_mask", [1, 1, 3, 5]).model_copy(update={"dtypes": ["bool"]}), attribute("is_causal", True)])])[0].metadata["resolved_operator_contract"]
+
+    assert valid["valid_dropout"] is True
+    assert valid["valid_causal_mask"] is True
+    assert valid["valid_attention"] is True
+    assert bad_dropout["valid_dropout"] is False
+    assert bad_dropout["attention_failure_reason"] == "dropout_out_of_range"
+    assert "output_shape" not in bad_dropout
+    assert conflict["valid_causal_mask"] is False
+    assert conflict["attention_failure_reason"] == "causal_mask_conflict"
+    assert "output_shape" not in conflict
+
+
 def test_complex_contract_invalid_variants_cover_conv_norm_attention():
     conv = CaseSpec(id=770, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("input", [1, 3, 8, 8]), _parameter("weight", [4, 3, 3, 3]), _parameter("bias", [4])])
     norm = CaseSpec(id=771, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("input", [2, 3, 4]), _parameter("normalized_shape", [4]), _parameter("weight", [4]), _parameter("bias", [4])])

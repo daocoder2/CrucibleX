@@ -179,6 +179,12 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
             invalid_shape = list(mask.shape.dims)
             invalid_shape[0] += 1
             mutations.append((mask_name, invalid_shape, "attention_mask_broadcast_mismatch"))
+        dropout_name = str(contract.get("dropout", "dropout_p"))
+        if dropout_name in parameters:
+            mutations.append((dropout_name, 2.0, "dropout_out_of_range"))
+        causal_name = str(contract.get("causal", "is_causal"))
+        if causal_name in parameters and mask_name in parameters:
+            mutations.append((causal_name, True, "causal_mask_conflict"))
     if family == "reshape":
         target_name = str(contract.get("shape", "shape"))
         target = parameters.get(target_name)
@@ -218,6 +224,7 @@ def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> Cas
     stale_fields = {
         "output_shape", "output_dtype", "values_dtype", "indices_dtype", "broadcast_shape",
         "valid_attention", "qk_embedding_compatible", "kv_sequence_compatible",
+        "dropout_p", "is_causal", "valid_dropout", "valid_causal_mask", "attention_failure_reason",
         "batch_compatible", "head_compatible", "mask_shape", "mask_broadcast_compatible",
         "valid_groups", "effective_kernel", "valid_geometry",
         "view_requires_contiguous", "input_contiguous", "valid_view", "view_failure_reason",

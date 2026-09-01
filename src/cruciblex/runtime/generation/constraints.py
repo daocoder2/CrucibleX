@@ -665,7 +665,21 @@ class OperatorContractConstraint(ConstraintPlugin):
                 mask_shape = _shape_dims(mask_parameter.shape if mask_parameter else None)
                 resolved["mask_shape"] = mask_shape
                 resolved["mask_broadcast_compatible"] = mask_shape is None or bool(_broadcast_item_shape([input_shape[0], input_shape[1], input_shape[2], key_shape[2]], mask_shape))
-                resolved["valid_attention"] = all(resolved[key] for key in ("qk_embedding_compatible", "kv_sequence_compatible", "batch_compatible", "head_compatible", "mask_broadcast_compatible"))
+                dropout_parameter = parameters.get(str(contract.get("dropout", "dropout_p")))
+                dropout = dropout_parameter.values if dropout_parameter and dropout_parameter.values is not None else None
+                causal_parameter = parameters.get(str(contract.get("causal", "is_causal")))
+                causal = causal_parameter.values if causal_parameter and causal_parameter.values is not None else False
+                valid_dropout = dropout is None or isinstance(dropout, (int, float)) and 0 <= dropout <= 1
+                valid_causal_mask = not (bool(causal) and mask_shape is not None)
+                resolved["dropout_p"] = dropout
+                resolved["is_causal"] = bool(causal)
+                resolved["valid_dropout"] = valid_dropout
+                resolved["valid_causal_mask"] = valid_causal_mask
+                resolved["valid_attention"] = all(resolved[key] for key in ("qk_embedding_compatible", "kv_sequence_compatible", "batch_compatible", "head_compatible", "mask_broadcast_compatible", "valid_dropout", "valid_causal_mask"))
+                if not valid_dropout:
+                    resolved["attention_failure_reason"] = "dropout_out_of_range"
+                elif not valid_causal_mask:
+                    resolved["attention_failure_reason"] = "causal_mask_conflict"
                 if resolved["valid_attention"]:
                     resolved["output_shape"] = [input_shape[0], input_shape[1], input_shape[2], value_shape[3]]
                     resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
