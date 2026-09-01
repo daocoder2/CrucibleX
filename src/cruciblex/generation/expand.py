@@ -97,7 +97,8 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
     if not isinstance(contract, dict):
         return case
     parameters = {parameter.name: parameter for parameter in case.parameters if parameter.name}
-    input_parameter = parameters.get(str(contract.get("input", "input")))
+    input_name = str(contract.get("input", "query" if contract.get("family") == "attention" else "input"))
+    input_parameter = parameters.get(input_name)
     input_shape = list(input_parameter.shape.dims) if input_parameter and input_parameter.shape and input_parameter.shape.dims else None
     if not input_shape:
         return case
@@ -116,6 +117,25 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
         dim = dim_parameter.values if dim_parameter else None
         axis = int(dim) % len(input_shape) if isinstance(dim, int) else 0
         mutations.append((str(contract.get("index", "index")), input_shape[axis], "index_out_of_range"))
+    if family == "conv":
+        weight = parameters.get(str(contract.get("weight", "weight")))
+        if weight and weight.shape and weight.shape.dims and len(weight.shape.dims) == 4:
+            invalid_shape = list(weight.shape.dims)
+            invalid_shape[1] = max(1, invalid_shape[1] + 1)
+            mutations.append((str(contract.get("weight", "weight")), invalid_shape, "conv_channel_mismatch"))
+    if family == "norm":
+        normalized_name = contract.get("normalized_shape", "normalized_shape")
+        normalized = parameters.get(str(normalized_name)) or parameters.get("normalized_shape")
+        if normalized and normalized.shape and normalized.shape.dims:
+            invalid_shape = list(normalized.shape.dims)
+            invalid_shape[-1] += 1
+            mutations.append((str(normalized_name) if isinstance(normalized_name, str) else "normalized_shape", invalid_shape, "normalized_shape_mismatch"))
+    if family == "attention":
+        key = parameters.get(str(contract.get("key", "key")))
+        if key and key.shape and key.shape.dims and len(key.shape.dims) == 4:
+            invalid_shape = list(key.shape.dims)
+            invalid_shape[1] += 1
+            mutations.append((str(contract.get("key", "key")), invalid_shape, "attention_head_mismatch"))
     if family == "reshape":
         target_name = str(contract.get("shape", "shape"))
         target = parameters.get(target_name)

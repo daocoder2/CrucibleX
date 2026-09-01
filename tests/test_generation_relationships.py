@@ -543,3 +543,18 @@ def test_conv_norm_attention_facts_generate_legal_shapes_and_contracts():
     assert generated[1].parameters[2].shape.dims == [4]
     assert generated[1].metadata["resolved_operator_contract"]["output_shape"] == [2, 3, 4]
     assert generated[2].metadata["resolved_operator_contract"]["output_shape"] == [2, 4, 3, 6]
+
+
+def test_complex_contract_invalid_variants_cover_conv_norm_attention():
+    conv = CaseSpec(id=770, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("input", [1, 3, 8, 8]), _parameter("weight", [4, 3, 3, 3]), _parameter("bias", [4])])
+    norm = CaseSpec(id=771, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("input", [2, 3, 4]), _parameter("normalized_shape", [4]), _parameter("weight", [4]), _parameter("bias", [4])])
+    attention = CaseSpec(id=772, operator=OperatorSpec(name="torch.scaled_dot_product_attention"), invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("query", [1, 2, 3, 4]), _parameter("key", [1, 2, 5, 4]), _parameter("value", [1, 2, 5, 4])])
+
+    generated = expand_cases([conv, norm, attention])
+
+    assert generated[1].metadata["contract_invalid_reason"] == "conv_channel_mismatch"
+    assert generated[1].parameters[1].metadata["selected_invalid_value"] == [4, 4, 3, 3]
+    assert generated[3].metadata["contract_invalid_reason"] == "normalized_shape_mismatch"
+    assert generated[3].parameters[1].metadata["selected_invalid_value"] == [5]
+    assert generated[5].metadata["contract_invalid_reason"] == "attention_head_mismatch"
+    assert generated[5].parameters[1].metadata["selected_invalid_value"] == [1, 3, 5, 4]
