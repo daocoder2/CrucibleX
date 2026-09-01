@@ -13,6 +13,8 @@
 | topk | `examples/cases/torch.topk.npu.yaml` | Torch/NPU | k/dim/largest/sorted device-tensor evidence |
 | index-select | `examples/cases/torch.index_select.npu.yaml` | Torch/NPU | int64 index and dim device-tensor evidence |
 | bmm | `examples/cases/torch.bmm.npu.yaml` | Torch/NPU | batch matmul device-tensor evidence |
+| gather | `examples/cases/torch.gather.npu.yaml` | Torch/NPU | int64 index device-tensor evidence |
+| scatter | `examples/cases/torch.scatter.npu.yaml` | Torch/NPU | int64 index and src device-tensor evidence |
 
 ## Required Gate Lanes
 

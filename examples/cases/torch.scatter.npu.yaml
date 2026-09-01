@@ -1,0 +1,12 @@
+# Torch NPU scatter contract sample.
+cases:
+  - id: 211
+    operator: {name: torch.scatter}
+    invocation: {api: torch.scatter, api_type: function, executor: torch}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3]}, values: [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]}
+      - {name: dim, kind: attribute, value_range: {valid: [1]}}
+      - {name: index, kind: tensor, dtypes: [int64], shape: {dims: [2, 2]}, values: [[2, 0], [1, 1]]}
+      - {name: src, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}, values: [[7.0, 8.0], [9.0, 10.0]]}
