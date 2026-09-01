@@ -126,10 +126,16 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
     if family == "norm":
         normalized_name = contract.get("normalized_shape", "normalized_shape")
         normalized = parameters.get(str(normalized_name)) or parameters.get("normalized_shape")
-        if normalized and normalized.shape and normalized.shape.dims:
-            invalid_shape = list(normalized.shape.dims)
-            invalid_shape[-1] += 1
-            mutations.append((str(normalized_name) if isinstance(normalized_name, str) else "normalized_shape", invalid_shape, "normalized_shape_mismatch"))
+        if normalized:
+            if normalized.shape and normalized.shape.dims:
+                invalid_shape = list(normalized.shape.dims)
+            elif isinstance(normalized.values, (list, tuple)) and normalized.values:
+                invalid_shape = list(normalized.values)
+            else:
+                invalid_shape = []
+            if invalid_shape:
+                invalid_shape[-1] += 1
+                mutations.append((str(normalized_name) if isinstance(normalized_name, str) else "normalized_shape", invalid_shape, "normalized_shape_mismatch"))
     if family == "attention":
         key = parameters.get(str(contract.get("key", "key")))
         if key and key.shape and key.shape.dims and len(key.shape.dims) == 4:

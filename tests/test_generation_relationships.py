@@ -554,6 +554,19 @@ def test_conv_norm_attention_facts_generate_legal_shapes_and_contracts():
     assert generated[2].metadata["resolved_operator_contract"]["output_shape"] == [2, 4, 3, 6]
 
 
+def test_attention_dimension_aliases_and_norm_attribute_invalid_generation():
+    attention = CaseSpec(id=773, operator=OperatorSpec(name="torch.scaled_dot_product_attention"), invocation=InvocationSpec(api="torch.scaled_dot_product_attention", api_type="function"), generation=GenerationSpec(), parameters=[_parameter("query", [2, 3, 4, 5]), _parameter("key", [9, 8, 7, 6]), _parameter("value", [9, 8, 7, 6])])
+    generated = expand_cases([attention])[0]
+    shapes = {parameter.name: parameter.shape.dims for parameter in generated.parameters}
+    assert shapes["key"] == [2, 3, 7, 5]
+    assert shapes["value"] == [2, 3, 7, 6]
+
+    norm = CaseSpec(id=774, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("input", [2, 3, 4]), ParameterSpec(name="normalized_shape", kind=ParameterKind.ATTRIBUTE_TUPLE, dtypes=["int64"], values=[4]), _parameter("weight", [4]), _parameter("bias", [4])])
+    invalid = expand_cases([norm])[1]
+    assert invalid.metadata["contract_invalid_reason"] == "normalized_shape_mismatch"
+    assert invalid.parameters[1].values == [5]
+
+
 def test_complex_contract_invalid_variants_cover_conv_norm_attention():
     conv = CaseSpec(id=770, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("input", [1, 3, 8, 8]), _parameter("weight", [4, 3, 3, 3]), _parameter("bias", [4])])
     norm = CaseSpec(id=771, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), generation=GenerationSpec(invalid_count=1), parameters=[_parameter("input", [2, 3, 4]), _parameter("normalized_shape", [4]), _parameter("weight", [4]), _parameter("bias", [4])])

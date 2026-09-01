@@ -40,6 +40,20 @@
 
 因此 bf16、special value、Torch layout/stride 可以由实际 device tensor case 进入 gate；ACLNN non-contiguous layout/stride 和 dynamic output 仍为 runtime capability blocker。
 
+## Family Coverage Matrix
+
+| Operator family | Parameter constraints | Output evidence contract | Invalid sample | Checked-in example | Backend execution status |
+| --- | --- | --- | --- | --- | --- |
+| reduce | dim/keepdim/dtype and reduction shape | output shape/dtype | dim out of range | `aclnn.mean.npu.yaml` | ACLNN/NPU passed; CPU/GPU matrix lane available through cross-device gate |
+| topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml` | Torch/NPU and ACLNN/NPU evidence recorded |
+| index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | Torch/NPU passed; CPU/GPU require matching archive lane |
+| reshape/layout | numel preservation, tuple shape, transpose rank | output shape/dtype and layout policy | numel mismatch, invalid dimensions | `torch.reshape.npu.yaml`, `torch.transpose.npu.yaml` | Torch/NPU passed; ACLNN layout/stride remains blocked by bridge semantics |
+| matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | Torch/NPU passed; CPU/GPU require matching archive lane |
+| conv/norm/attention | channel aliases, normalized shape, QKV batch/head/embed aliases | formula-derived output shape/dtype | channel, normalized-shape, head mismatch | `torch.conv2d.generated.yaml`, `torch.layer-norm.generated.yaml`, `torch.attention.generated.yaml` | automatic generation verified; runtime support explicitly capability-gated |
+| ACLNN signature | native scalar/array ABI, output dtype/shape, lifecycle | parsed signature and output descriptors | unsupported ABI kind/shape | `aclnn.mean.npu.yaml` | ACLNN mean/max-dim/sort NPU evidence; optional/list ABI blockers documented |
+
+复杂算子的 generated 示例会同时产生合法 case、`expected_invalid` case、解析后的 `resolved_operator_contract` 与输出 shape。CPU/GPU/NPU 三侧真实矩阵由 `scripts/cpu_gpu_npu_accuracy_gate.sh` 汇总；ACLNN 作为 NPU-side executor 单独记录，不能替代 CPU/GPU evidence。
+
 ## Evidence Rule
 
 通过 gate 只表示该 Case 在指定真实设备环境中产生了可审计 evidence，不自动扩展为所有 shape、dtype 或 ABI 的后端支持声明。

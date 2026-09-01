@@ -241,6 +241,19 @@ def _resolve_shape_relationship(kind: object, source: list[int] | None, target: 
         return None
     if kind == "same_rank":
         return target if target is not None and len(target) == len(source) else list(source)
+    if kind == "dimension_aliases":
+        if target is None:
+            return None
+        aliases = relation.get("aliases", [])
+        if not isinstance(aliases, list):
+            return target
+        for item in aliases:
+            if not isinstance(item, dict):
+                continue
+            source_dimension = int(item.get("source_dimension", -1)) % len(source)
+            dimension = int(item.get("dimension", -1)) % len(target)
+            target[dimension] = source[source_dimension]
+        return target
     if kind == "same_shape_as":
         return list(source)
     if kind == "last_dimension_as":

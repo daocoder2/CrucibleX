@@ -1,0 +1,24 @@
+# Declarative scaled dot-product attention contract sample. Runtime support remains capability-gated.
+cases:
+  - id: 303
+    operator: {name: torch.scaled_dot_product_attention}
+    invocation: {api: torch.scaled_dot_product_attention, api_type: function, executor: torch}
+    generator: default
+    parameters:
+      - name: query
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [1, 2, 3, 4]}
+      - name: key
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [1, 2, 5, 4]}
+      - name: value
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [1, 2, 5, 4]}
+      - {name: attn_mask, kind: tensor, dtypes: [bool], shape: {dims: [1, 2, 3, 5]}}
+      - {name: dropout_p, kind: attribute, dtypes: [fp32], values: 0.0}
+      - {name: is_causal, kind: attribute, dtypes: [bool], values: false}
+    generation: {invalid_count: 1}
+    oracle: {comparison: allclose, reference_executor: torch}

@@ -1,0 +1,23 @@
+# Declarative layer_norm contract sample. Runtime support remains capability-gated.
+cases:
+  - id: 302
+    operator: {name: torch.layer_norm}
+    invocation: {api: torch.layer_norm, api_type: function, executor: torch}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 3, 4]}
+      - {name: normalized_shape, kind: attribute_tuple, dtypes: [int64], values: [4]}
+      - name: weight
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [4]}
+      - name: bias
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [4]}
+      - {name: eps, kind: attribute, dtypes: [fp32], values: 1.0e-5}
+    generation: {invalid_count: 1}
+    oracle: {comparison: allclose, reference_executor: torch}

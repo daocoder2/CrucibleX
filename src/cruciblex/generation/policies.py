@@ -164,8 +164,8 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         "contract": {"family": "attention", "query": "query", "key": "key", "value": "value", "mask": "attn_mask", "dropout": "dropout_p", "causal": "is_causal", "runtime_supported": False},
         "parameters": {
             "query": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [4, 4]}},
-            "key": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_rank", "source": "query"}},
-            "value": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_rank", "source": "key"}},
+            "key": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "dimension_aliases", "source": "query", "aliases": [{"source_dimension": 0, "dimension": 0}, {"source_dimension": 1, "dimension": 1}, {"source_dimension": 3, "dimension": 3}]}},
+            "value": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "dimension_aliases", "source": "key", "aliases": [{"source_dimension": 0, "dimension": 0}, {"source_dimension": 1, "dimension": 1}, {"source_dimension": 2, "dimension": 2}]}},
             "attn_mask": {"dtype_policy": {"library": "boolean"}},
         },
     },

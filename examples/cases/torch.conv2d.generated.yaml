@@ -1,0 +1,25 @@
+# Declarative conv2d contract sample. Runtime support remains capability-gated.
+cases:
+  - id: 301
+    operator: {name: torch.conv2d}
+    invocation: {api: torch.conv2d, api_type: function, executor: torch}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [1, 3, 5, 5]}
+      - name: weight
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [4, 3, 3, 3]}
+      - name: bias
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [4]}
+      - {name: stride, kind: attribute_tuple, dtypes: [int64], values: [1, 1]}
+      - {name: padding, kind: attribute_tuple, dtypes: [int64], values: [1, 1]}
+      - {name: dilation, kind: attribute_tuple, dtypes: [int64], values: [1, 1]}
+      - {name: groups, kind: attribute, dtypes: [int64], values: 1}
+    generation: {invalid_count: 1}
+    oracle: {comparison: allclose, reference_executor: torch}
