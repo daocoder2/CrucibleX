@@ -482,6 +482,9 @@ def test_operator_contract_generates_invalid_dim_k_index_and_reshape_variants():
     assert expanded[2].parameters[1].values == 6
     assert [case.metadata["contract_invalid_reason"] for case in expanded[4:6]] == ["dim_out_of_range", "index_out_of_range"]
     assert expanded[5].parameters[1].metadata["selected_invalid_value"] == 5
+    assert expanded[5].metadata["resolved_operator_contract"]["index_values_in_range"] is False
+    assert expanded[5].metadata["resolved_operator_contract"]["index_failure_reason"] == "index_value_out_of_range"
+    assert "output_shape" not in expanded[5].metadata["resolved_operator_contract"]
     assert expanded[7].parameters[1].values == [3, 3]
 
 

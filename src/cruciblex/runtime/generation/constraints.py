@@ -522,12 +522,13 @@ class OperatorContractConstraint(ConstraintPlugin):
                 else:
                     resolved["output_shape"] = list(input_shape)
             elif valid_dim:
-                resolved["valid_index_contract"] = index_dtype_valid
-                if index_dtype_valid:
-                    if mode == "select":
-                        resolved["output_shape"] = [value for position, value in enumerate(input_shape) if position != normalized_dim]
-                else:
+                resolved["valid_index_contract"] = index_dtype_valid and index_values_valid
+                if not index_dtype_valid:
                     resolved["index_failure_reason"] = "index_dtype_not_int64"
+                elif not index_values_valid:
+                    resolved["index_failure_reason"] = "index_value_out_of_range"
+                elif mode == "select":
+                    resolved["output_shape"] = [value for position, value in enumerate(input_shape) if position != normalized_dim]
         elif family in {"where", "masked_fill"} and input_shape is not None:
             shapes = [input_shape]
             if family == "where":

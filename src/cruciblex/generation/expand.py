@@ -117,7 +117,11 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
         dim_parameter = parameters.get(dim_name)
         dim = dim_parameter.values if dim_parameter else None
         axis = int(dim) % len(input_shape) if isinstance(dim, int) else 0
-        mutations.append((str(contract.get("index", "index")), input_shape[axis], "index_out_of_range"))
+        index_name = str(contract.get("index", "index"))
+        index = parameters.get(index_name)
+        index_shape = list(index.shape.dims) if index and index.shape and index.shape.dims else []
+        if index_shape:
+            mutations.append((index_name, {"tensor_values": _filled_values(index_shape, input_shape[axis]), "selected_invalid_value": input_shape[axis]}, "index_out_of_range"))
     if family in {"where", "masked_fill"}:
         mask_name = str(contract.get("condition" if family == "where" else "mask", "condition" if family == "where" else "mask"))
         mask = parameters.get(mask_name)
@@ -214,7 +218,10 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
             parameter = parameter.model_copy(update={"values": value, "metadata": metadata})
         else:
             metadata["selected_invalid_value"] = value
-            if isinstance(value, dict) and "shape_policy" in value:
+            if isinstance(value, dict) and "tensor_values" in value:
+                metadata["selected_invalid_value"] = value.get("selected_invalid_value")
+                parameter = parameter.model_copy(update={"values": value["tensor_values"], "metadata": metadata})
+            elif isinstance(value, dict) and "shape_policy" in value:
                 metadata["shape_policy"] = {**parameter.metadata.get("shape_policy", {}), **value["shape_policy"]}
                 parameter = parameter.model_copy(update={"metadata": metadata})
             elif isinstance(value, list) and all(isinstance(dimension, int) and dimension >= 0 for dimension in value):
@@ -225,6 +232,12 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
     metadata = dict(case.metadata)
     metadata["contract_invalid_reason"] = reason
     return case.model_copy(update={"parameters": updated, "metadata": metadata})
+
+
+def _filled_values(shape: list[int], value: int) -> object:
+    if not shape:
+        return value
+    return [_filled_values(shape[1:], value) for _ in range(shape[0])]
 
 
 def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> CaseSpec:
@@ -242,7 +255,7 @@ def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> Cas
         "valid_reduce_dims", "reduced_dimensions", "reduce_failure_reason",
         "batch_mode", "valid_batch_broadcast", "valid_inner_dimension", "inner_dimension",
         "batch_shape", "valid_matmul", "matmul_failure_reason",
-        "index_range", "index_dtype", "valid_index_dim", "valid_index_dtype", "valid_index_shape",
+        "index_range", "index_dtype", "valid_index_dim", "valid_index_dtype", "index_values_in_range", "valid_index_shape",
         "src_shape", "valid_src_shape", "valid_index_contract", "index_failure_reason",
         "normalized_shape", "channels", "resolved_num_groups",
         "valid_normalized_shape", "valid_weight_shape", "valid_bias_shape", "valid_eps",
