@@ -1,0 +1,12 @@
+# Declarative 3D gather index-shape contract sample.
+cases:
+  - id: 304
+    operator: {name: torch.gather}
+    invocation: {api: torch.gather, api_type: function, executor: torch}
+    generator: default
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 4]}}
+      - {name: dim, kind: attribute, dtypes: [int64], values: 1}
+      - {name: index, kind: tensor, dtypes: [int64], shape: {dims: [2, 5, 4]}}
+    generation: {invalid_count: 1}
+    oracle: {comparison: allclose, reference_executor: torch}

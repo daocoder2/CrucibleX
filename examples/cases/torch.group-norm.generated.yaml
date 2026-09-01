@@ -1,0 +1,14 @@
+# Declarative group_norm contract sample. Runtime support remains capability-gated.
+cases:
+  - id: 303
+    operator: {name: torch.group_norm}
+    invocation: {api: torch.group_norm, api_type: function, executor: torch}
+    generator: default
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 6, 4, 4]}}
+      - {name: num_groups, kind: attribute, dtypes: [int64], values: 3}
+      - {name: weight, kind: tensor, dtypes: [fp32], shape: {dims: [6]}}
+      - {name: bias, kind: tensor, dtypes: [fp32], shape: {dims: [6]}}
+      - {name: eps, kind: attribute, dtypes: [fp32], values: 1.0e-5}
+    generation: {invalid_count: 1}
+    oracle: {comparison: allclose, reference_executor: torch}
