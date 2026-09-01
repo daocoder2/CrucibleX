@@ -218,6 +218,8 @@ def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> Cas
         "valid_reduce_dims", "reduced_dimensions", "reduce_failure_reason",
         "batch_mode", "valid_batch_broadcast", "valid_inner_dimension", "inner_dimension",
         "batch_shape", "valid_matmul", "matmul_failure_reason",
+        "index_range", "index_dtype", "valid_index_dim", "valid_index_dtype", "valid_index_shape",
+        "src_shape", "valid_src_shape", "valid_index_contract", "index_failure_reason",
     }
     metadata = dict(case.metadata)
     metadata["resolved_operator_contract"] = {key: value for key, value in contract.items() if key not in stale_fields}

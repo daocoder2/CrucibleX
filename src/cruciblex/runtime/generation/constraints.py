@@ -471,17 +471,47 @@ class OperatorContractConstraint(ConstraintPlugin):
                 resolved["indices_dtype"] = "int64"
         elif family == "index" and input_shape is not None:
             index_dim = dim if isinstance(dim, int) else 0
-            resolved["index_range"] = [0, input_shape[index_dim % len(input_shape)] - 1]
-            resolved["index_dtype"] = "int64"
+            valid_dim = -len(input_shape) <= index_dim < len(input_shape)
+            normalized_dim = index_dim % len(input_shape) if valid_dim else 0
             index_parameter = parameters.get(str(contract.get("index", "index")))
             index_shape = _shape_dims(index_parameter.shape if index_parameter else None)
+            index_dtype_valid = bool(index_parameter and "int64" in index_parameter.dtypes)
             mode = contract.get("mode", "index_select")
-            if mode == "gather" and index_shape is not None:
-                resolved["output_shape"] = index_shape
-            elif mode == "scatter":
-                resolved["output_shape"] = list(input_shape)
-            elif mode == "select":
-                resolved["output_shape"] = [value for position, value in enumerate(input_shape) if position != index_dim % len(input_shape)]
+            resolved["index_dtype"] = "int64"
+            resolved["valid_index_dim"] = valid_dim
+            resolved["valid_index_dtype"] = index_dtype_valid
+            if valid_dim:
+                resolved["index_range"] = [0, input_shape[normalized_dim] - 1]
+            if mode in {"gather", "scatter"}:
+                valid_index_shape, index_failure = _validate_index_shape(input_shape, index_shape, normalized_dim, valid_dim)
+                resolved["valid_index_shape"] = valid_index_shape
+                valid_src_shape = True
+                if mode == "scatter":
+                    src_parameter = parameters.get(str(contract.get("src", "src")))
+                    src_shape = _shape_dims(src_parameter.shape if src_parameter else None)
+                    valid_src_shape = _validate_scatter_src_shape(index_shape, src_shape)
+                    resolved["src_shape"] = src_shape
+                    resolved["valid_src_shape"] = valid_src_shape
+                resolved["valid_index_contract"] = valid_dim and index_dtype_valid and valid_index_shape and valid_src_shape
+                if not valid_dim:
+                    resolved["index_failure_reason"] = "index_dim_out_of_range"
+                elif not index_dtype_valid:
+                    resolved["index_failure_reason"] = "index_dtype_not_int64"
+                elif not valid_index_shape:
+                    resolved["index_failure_reason"] = index_failure
+                elif not valid_src_shape:
+                    resolved["index_failure_reason"] = "scatter_src_shape_mismatch"
+                elif mode == "gather":
+                    resolved["output_shape"] = index_shape
+                else:
+                    resolved["output_shape"] = list(input_shape)
+            elif valid_dim:
+                resolved["valid_index_contract"] = index_dtype_valid
+                if index_dtype_valid:
+                    if mode == "select":
+                        resolved["output_shape"] = [value for position, value in enumerate(input_shape) if position != normalized_dim]
+                else:
+                    resolved["index_failure_reason"] = "index_dtype_not_int64"
         elif family in {"where", "masked_fill"} and input_shape is not None:
             shapes = [input_shape]
             if family == "where":
@@ -646,6 +676,22 @@ def _resolve_reduction_dimensions(dim: object, rank: int) -> tuple[bool, list[in
 def _reduce_shape(shape: list[int], dimensions: list[int], keepdim: bool) -> list[int]:
     selected = set(dimensions)
     return [1 if index in selected and keepdim else value for index, value in enumerate(shape) if keepdim or index not in selected]
+
+
+def _validate_index_shape(input_shape: list[int], index_shape: list[int] | None, dim: int, valid_dim: bool) -> tuple[bool, str]:
+    if not valid_dim:
+        return False, "index_dim_out_of_range"
+    if index_shape is None or len(index_shape) != len(input_shape):
+        return False, "index_rank_mismatch"
+    if any(index_shape[position] > input_shape[position] for position in range(len(input_shape)) if position != dim):
+        return False, "index_non_dim_extent_exceeds_input"
+    return True, ""
+
+
+def _validate_scatter_src_shape(index_shape: list[int] | None, src_shape: list[int] | None) -> bool:
+    if index_shape is None or src_shape is None or len(index_shape) != len(src_shape):
+        return False
+    return all(source >= index for source, index in zip(src_shape, index_shape, strict=True))
 
 
 def _broadcast_shape(left: list[int], right: list[int]) -> tuple[bool, list[int]]:

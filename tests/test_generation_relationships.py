@@ -584,6 +584,39 @@ def test_attention_dimension_aliases_and_norm_attribute_invalid_generation():
     assert invalid.parameters[1].values == [5]
 
 
+def test_gather_scatter_contract_validates_complex_index_and_src_shapes():
+    def parameter(name: str, dims: list[int], dtype: str = "fp32") -> ParameterSpec:
+        return _parameter(name, dims).model_copy(update={"dtypes": [dtype]})
+
+    def case(case_id: int, mode: str, index_dims: list[int], src_dims: list[int] | None = None) -> CaseSpec:
+        parameters = [parameter("input", [2, 3, 4]), ParameterSpec(name="dim", kind=ParameterKind.ATTRIBUTE, dtypes=["int64"], values=1), parameter("index", index_dims, "int64")]
+        if src_dims is not None:
+            parameters.append(parameter("src", src_dims))
+        return CaseSpec(
+            id=case_id,
+            operator=OperatorSpec(name=f"custom.{mode}"),
+            invocation=InvocationSpec(api=f"torch.{mode}", api_type="function"),
+            generation=GenerationSpec(metadata={"operator_facts": {"contract": {"family": "index", "mode": mode, "input": "input", "index": "index", "dim_parameter": "dim"}}}),
+            parameters=parameters,
+        )
+
+    gather = expand_cases([case(788, "gather", [2, 5, 4])])[0].metadata["resolved_operator_contract"]
+    gather_bad = expand_cases([case(789, "gather", [3, 5, 4])])[0].metadata["resolved_operator_contract"]
+    scatter = expand_cases([case(790, "scatter", [2, 5, 4], [2, 5, 4])])[0].metadata["resolved_operator_contract"]
+    scatter_bad = expand_cases([case(791, "scatter", [2, 5, 4], [2, 4, 4])])[0].metadata["resolved_operator_contract"]
+
+    assert gather["valid_index_contract"] is True
+    assert gather["output_shape"] == [2, 5, 4]
+    assert gather_bad["valid_index_shape"] is False
+    assert gather_bad["index_failure_reason"] == "index_non_dim_extent_exceeds_input"
+    assert "output_shape" not in gather_bad
+    assert scatter["valid_index_contract"] is True
+    assert scatter["output_shape"] == [2, 3, 4]
+    assert scatter_bad["valid_src_shape"] is False
+    assert scatter_bad["index_failure_reason"] == "scatter_src_shape_mismatch"
+    assert "output_shape" not in scatter_bad
+
+
 def test_matmul_contract_distinguishes_broadcast_and_bmm_batch_rules():
     def case(case_id: int, left: list[int], right: list[int], batch_mode: str = "broadcast") -> CaseSpec:
         return CaseSpec(
