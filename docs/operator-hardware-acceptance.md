@@ -10,6 +10,7 @@
 | reduce | `examples/cases/torch.mean.hardware.yaml` | Torch CPU/GPU | dim/keepdim and shared-fingerprint output evidence |
 | reduce | `examples/cases/aclnn.max_dim.npu.yaml` | ACLNN/NPU | dim/keepdim/multi-output indices sample |
 | sort | `examples/cases/aclnn.sort.npu.yaml` | ACLNN/NPU | dim/descending/multi-output sample |
+| sort | `examples/cases/torch.sort.hardware.yaml` | Torch CPU/GPU | stable keyword binding and values/indices output evidence |
 | matmul | `examples/cases/torch.matmul.hardware.yaml` | Torch hardware | rank-2 matmul sample |
 | topk | `examples/cases/torch.topk.npu.yaml` | Torch/NPU | k/dim/largest/sorted device-tensor evidence |
 | index-select | `examples/cases/torch.index_select.npu.yaml` | Torch/NPU | int64 index and dim device-tensor evidence |
@@ -46,7 +47,7 @@
 | Operator family | Parameter constraints | Output evidence contract | Invalid sample | Checked-in example | Backend execution status |
 | --- | --- | --- | --- | --- | --- |
 | reduce | dim/keepdim/dtype and reduction shape | output shape/dtype | dim out of range | `aclnn.mean.npu.yaml`, `torch.mean.hardware.yaml` | reduce CPU/GPU shared-fingerprint compare passed; ACLNN/NPU evidence recorded |
-| topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml` | topk CPU/GPU shared-fingerprint compare passed; Torch/NPU and ACLNN/NPU evidence recorded |
+| topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml`, `torch.sort.hardware.yaml` | topk and sort CPU/GPU shared-fingerprint compares passed; Torch/NPU and ACLNN/NPU evidence recorded |
 | index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | index-select, gather, scatter and where CPU/GPU shared-fingerprint compares passed; Torch/NPU index/mask evidence recorded |
 | reshape/layout | numel preservation, tuple shape, transpose rank | output shape/dtype and layout policy | numel mismatch, invalid dimensions | `torch.reshape.npu.yaml`, `torch.transpose.npu.yaml` | reshape/transpose CPU/GPU shared-fingerprint compares passed; Torch/NPU passed; ACLNN layout/stride remains blocked by bridge semantics |
 | matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | bmm CPU/GPU shared-fingerprint compare passed; Torch/NPU evidence recorded; matmul CPU/GPU also passed |

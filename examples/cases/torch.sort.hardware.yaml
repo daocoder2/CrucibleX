@@ -1,0 +1,32 @@
+# Deterministic Torch sort baseline with values and int64 indices output.
+cases:
+  - id: 25
+    operator: {name: torch.sort}
+    invocation:
+      api: torch.sort
+      api_type: function
+      executor: torch
+      binding: {mode: mixed, names: [input, dim, descending, stable], positional: [0]}
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-6, rtol: 1.0e-6}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 4]}
+        values: [[3.0, 1.0, 4.0, 2.0], [8.0, 6.0, 7.0, 5.0]]
+      - name: dim
+        kind: attribute
+        dtypes: [int64]
+        value_range: {valid: [1]}
+      - name: descending
+        kind: attribute
+        dtypes: [bool]
+        values: true
+      - name: stable
+        kind: attribute
+        dtypes: [bool]
+        values: true
