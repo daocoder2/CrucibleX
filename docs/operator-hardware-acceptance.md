@@ -7,6 +7,7 @@
 | Family | Public case | Backend | Status |
 | --- | --- | --- | --- |
 | reduce | `examples/cases/aclnn.mean.npu.yaml` | ACLNN/NPU | dim/keepdim/dtype/output shape sample |
+| reduce | `examples/cases/torch.mean.hardware.yaml` | Torch CPU/GPU | dim/keepdim and shared-fingerprint output evidence |
 | reduce | `examples/cases/aclnn.max_dim.npu.yaml` | ACLNN/NPU | dim/keepdim/multi-output indices sample |
 | sort | `examples/cases/aclnn.sort.npu.yaml` | ACLNN/NPU | dim/descending/multi-output sample |
 | matmul | `examples/cases/torch.matmul.hardware.yaml` | Torch hardware | rank-2 matmul sample |
@@ -44,15 +45,15 @@
 
 | Operator family | Parameter constraints | Output evidence contract | Invalid sample | Checked-in example | Backend execution status |
 | --- | --- | --- | --- | --- | --- |
-| reduce | dim/keepdim/dtype and reduction shape | output shape/dtype | dim out of range | `aclnn.mean.npu.yaml` | ACLNN/NPU passed; CPU/GPU matrix lane available through cross-device gate |
+| reduce | dim/keepdim/dtype and reduction shape | output shape/dtype | dim out of range | `aclnn.mean.npu.yaml`, `torch.mean.hardware.yaml` | reduce CPU/GPU shared-fingerprint compare passed; ACLNN/NPU evidence recorded |
 | topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml` | topk CPU/GPU shared-fingerprint compare passed; Torch/NPU and ACLNN/NPU evidence recorded |
 | index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | index-select and where CPU/GPU shared-fingerprint compares passed; Torch/NPU index/mask evidence recorded |
 | reshape/layout | numel preservation, tuple shape, transpose rank | output shape/dtype and layout policy | numel mismatch, invalid dimensions | `torch.reshape.npu.yaml`, `torch.transpose.npu.yaml` | reshape/transpose CPU/GPU shared-fingerprint compares passed; Torch/NPU passed; ACLNN layout/stride remains blocked by bridge semantics |
-| matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | Torch/NPU passed; CPU/GPU matmul passed with shared case fingerprint |
+| matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | bmm CPU/GPU shared-fingerprint compare passed; Torch/NPU evidence recorded; matmul CPU/GPU also passed |
 | conv/norm/attention | channel aliases, normalized shape, QKV batch/head/embed aliases | formula-derived output shape/dtype | channel, normalized-shape, head mismatch | `torch.conv2d.generated.yaml`, `torch.layer-norm.generated.yaml`, `torch.attention.generated.yaml` | legal conv2d/layer_norm/attention CPU/GPU shared-fingerprint compares passed; invalid variants remain negative validation; runtime support explicitly capability-gated |
 | ACLNN signature | native scalar/array ABI, output dtype/shape, lifecycle | parsed signature and output descriptors | unsupported ABI kind/shape | `aclnn.mean.npu.yaml` | ACLNN mean/max-dim/sort NPU evidence; optional/list ABI blockers documented |
 
-复杂算子的 generated 示例会同时产生合法 case、`expected_invalid` case、解析后的 `resolved_operator_contract` 与输出 shape。当前真实执行矩阵：CPU NumPy broadcast 已通过；CPU/GPU Torch matmul、where、topk、index-select、reshape、transpose、masked_fill，以及 conv2d、layer_norm、scaled-dot-product-attention 的合法 case 已在同一容器、同一 case fingerprint 下通过；NPU Torch/ACLNN 多条 lane 已通过。CPU/GPU/NPU 三侧聚合仍由 `scripts/cpu_gpu_npu_accuracy_gate.sh` 汇总；ACLNN 作为 NPU-side executor 单独记录，不能替代 CPU/GPU evidence。
+复杂算子的 generated 示例会同时产生合法 case、`expected_invalid` case、解析后的 `resolved_operator_contract` 与输出 shape。当前真实执行矩阵：CPU NumPy broadcast 已通过；CPU/GPU Torch mean、matmul、bmm、where、topk、index-select、reshape、transpose、masked_fill，以及 conv2d、layer_norm、scaled-dot-product-attention 的合法 case 已在同一容器、同一 case fingerprint 下通过；NPU Torch/ACLNN 多条 lane 已通过。CPU/GPU/NPU 三侧聚合仍由 `scripts/cpu_gpu_npu_accuracy_gate.sh` 汇总；ACLNN 作为 NPU-side executor 单独记录，不能替代 CPU/GPU evidence。
 
 ## Evidence Rule
 

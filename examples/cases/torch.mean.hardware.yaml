@@ -1,0 +1,24 @@
+# Deterministic Torch reduction baseline: mean over dimension 1.
+cases:
+  - id: 24
+    operator: {name: torch.mean}
+    invocation: {api: torch.mean, api_type: function, executor: torch}
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-6, rtol: 1.0e-6}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 4]}
+        values: [[3.0, 1.0, 4.0, 2.0], [8.0, 6.0, 7.0, 5.0]]
+      - name: dim
+        kind: attribute
+        dtypes: [int64]
+        value_range: {valid: [1]}
+      - name: keepdim
+        kind: attribute
+        dtypes: [bool]
+        values: false
