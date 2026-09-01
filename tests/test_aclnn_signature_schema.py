@@ -116,6 +116,26 @@ def test_capability_matrix_documents_supported_lifecycle_and_native_abi_boundari
         runtime.validate_capabilities(unsupported)
 
 
+def test_schema_preserves_tensor_list_and_optional_declarations_before_preflight():
+    spec = op_spec_from_case(_case({
+        "inputs": [
+            {"name": "inputs", "kind": "tensor_list", "optional": True},
+            {"name": "mask", "kind": "optional_tensor", "optional": True},
+        ],
+        "attributes": [{"name": "scale", "kind": "optional_scalar", "optional": True, "value": None}],
+        "outputs": [{"name": "output", "kind": "tensor", "like": "inputs"}],
+    }))
+
+    assert [(argument.kind, argument.optional) for argument in spec.inputs] == [("tensor_list", True), ("optional_tensor", True)]
+    assert spec.attributes[0].kind == "optional_scalar"
+    assert spec.attributes[0].optional is True
+    for index, message in [(0, "tensor-list ownership"), (1, "null tensor ABI contract")]:
+        with pytest.raises(ExecutionNotSupportedError, match=message):
+            AclnnRuntime().validate_capabilities(AclnnOpSpec(op_name="Example", inputs=(spec.inputs[index],), outputs=spec.outputs))
+    with pytest.raises(ExecutionNotSupportedError, match="null scalar ABI contract"):
+        AclnnRuntime().validate_capabilities(AclnnOpSpec(op_name="Example", inputs=(AclnnArg(name="input"),), attributes=spec.attributes, outputs=spec.outputs))
+
+
 def test_schema_preserves_layout_declarations_and_preflight_blocks_unsupported_abi():
     spec = op_spec_from_case(_case({
         "inputs": [{"name": "input", "kind": "tensor", "format": "FRACTAL_NZ", "strides": [4, 1], "storage_offset": 2}],
