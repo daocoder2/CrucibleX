@@ -545,8 +545,18 @@ class OperatorContractConstraint(ConstraintPlugin):
             key_shape = _shape_dims(key_parameter.shape if key_parameter else None)
             value_shape = _shape_dims(value_parameter.shape if value_parameter else None)
             if len(input_shape) == 4 and key_shape and value_shape and len(key_shape) == 4 and len(value_shape) == 4:
-                resolved["output_shape"] = [input_shape[0], input_shape[1], input_shape[2], value_shape[3]]
-                resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+                resolved["qk_embedding_compatible"] = input_shape[3] == key_shape[3]
+                resolved["kv_sequence_compatible"] = key_shape[2] == value_shape[2]
+                resolved["batch_compatible"] = input_shape[0] == key_shape[0] == value_shape[0]
+                resolved["head_compatible"] = input_shape[1] == key_shape[1] == value_shape[1]
+                mask_parameter = parameters.get(str(contract.get("mask", "attn_mask")))
+                mask_shape = _shape_dims(mask_parameter.shape if mask_parameter else None)
+                resolved["mask_shape"] = mask_shape
+                resolved["mask_broadcast_compatible"] = mask_shape is None or bool(_broadcast_item_shape([input_shape[0], input_shape[1], input_shape[2], key_shape[2]], mask_shape))
+                resolved["valid_attention"] = all(resolved[key] for key in ("qk_embedding_compatible", "kv_sequence_compatible", "batch_compatible", "head_compatible", "mask_broadcast_compatible"))
+                if resolved["valid_attention"]:
+                    resolved["output_shape"] = [input_shape[0], input_shape[1], input_shape[2], value_shape[3]]
+                    resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "matmul":
             left = _shape_dims(parameters.get(str(contract.get("left", "input"))).shape if parameters.get(str(contract.get("left", "input"))) else None)
             right = _shape_dims(parameters.get(str(contract.get("right", "other"))).shape if parameters.get(str(contract.get("right", "other"))) else None)
