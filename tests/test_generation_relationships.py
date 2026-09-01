@@ -584,6 +584,40 @@ def test_attention_dimension_aliases_and_norm_attribute_invalid_generation():
     assert invalid.parameters[1].values == [5]
 
 
+def test_norm_contract_validates_group_channels_and_layer_suffix():
+    def group_case(case_id: int, groups: int, weight_shape: list[int]) -> CaseSpec:
+        return CaseSpec(
+            id=case_id, operator=OperatorSpec(name="torch.group_norm"), invocation=InvocationSpec(api="torch.group_norm", api_type="function"),
+            parameters=[_parameter("input", [2, 6, 4, 4]), ParameterSpec(name="num_groups", kind=ParameterKind.ATTRIBUTE, dtypes=["int64"], values=groups), _parameter("weight", weight_shape), _parameter("bias", [6])],
+        )
+
+    valid = expand_cases([group_case(792, 3, [6])])[0].metadata["resolved_operator_contract"]
+    generated_invalid = expand_cases([group_case(796, 3, [6]).model_copy(update={"generation": GenerationSpec(invalid_count=1)})])[1]
+    bad_groups = expand_cases([group_case(793, 4, [6])])[0].metadata["resolved_operator_contract"]
+    bad_weight = expand_cases([group_case(794, 3, [3])])[0].metadata["resolved_operator_contract"]
+
+    assert valid["norm_type"] == "group"
+    assert valid["valid_groups"] is True
+    assert valid["valid_norm"] is True
+    assert valid["output_shape"] == [2, 6, 4, 4]
+    assert generated_invalid.metadata["contract_invalid_reason"] == "group_channel_mismatch"
+    assert generated_invalid.parameters[1].values == 4
+    assert generated_invalid.metadata["resolved_operator_contract"]["valid_norm"] is False
+    assert "output_shape" not in generated_invalid.metadata["resolved_operator_contract"]
+    assert bad_groups["valid_groups"] is False
+    assert bad_groups["norm_failure_reason"] == "group_channel_mismatch"
+    assert "output_shape" not in bad_groups
+    assert bad_weight["valid_weight_shape"] is False
+    assert bad_weight["norm_failure_reason"] == "norm_weight_shape_mismatch"
+    assert "output_shape" not in bad_weight
+
+    layer = CaseSpec(id=795, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), parameters=[_parameter("input", [2, 3, 4, 5]), _parameter("normalized_shape", [4, 5]), _parameter("weight", [4, 5]), _parameter("bias", [4, 5])])
+    layer_contract = expand_cases([layer])[0].metadata["resolved_operator_contract"]
+    assert layer_contract["valid_normalized_shape"] is True
+    assert layer_contract["valid_norm"] is True
+    assert layer_contract["output_shape"] == [2, 3, 4, 5]
+
+
 def test_gather_scatter_contract_validates_complex_index_and_src_shapes():
     def parameter(name: str, dims: list[int], dtype: str = "fp32") -> ParameterSpec:
         return _parameter(name, dims).model_copy(update={"dtypes": [dtype]})

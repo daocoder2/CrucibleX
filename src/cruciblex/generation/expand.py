@@ -139,18 +139,24 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
             if name in parameters:
                 mutations.append((name, value, reason))
     if family == "norm":
-        normalized_name = contract.get("normalized_shape", "normalized_shape")
-        normalized = parameters.get(str(normalized_name)) or parameters.get("normalized_shape")
-        if normalized:
-            if normalized.shape and normalized.shape.dims:
-                invalid_shape = list(normalized.shape.dims)
-            elif isinstance(normalized.values, (list, tuple)) and normalized.values:
-                invalid_shape = list(normalized.values)
-            else:
-                invalid_shape = []
-            if invalid_shape:
-                invalid_shape[-1] += 1
-                mutations.append((str(normalized_name) if isinstance(normalized_name, str) else "normalized_shape", invalid_shape, "normalized_shape_mismatch"))
+        if contract.get("norm_type") == "group":
+            groups_name = str(contract.get("num_groups", "num_groups"))
+            groups = parameters.get(groups_name)
+            if groups and isinstance(groups.values, int):
+                mutations.append((groups_name, int(groups.values) + 1, "group_channel_mismatch"))
+        else:
+            normalized_name = contract.get("normalized_shape", "normalized_shape")
+            normalized = parameters.get(str(normalized_name)) or parameters.get("normalized_shape")
+            if normalized:
+                if normalized.shape and normalized.shape.dims:
+                    invalid_shape = list(normalized.shape.dims)
+                elif isinstance(normalized.values, (list, tuple)) and normalized.values:
+                    invalid_shape = list(normalized.values)
+                else:
+                    invalid_shape = []
+                if invalid_shape:
+                    invalid_shape[-1] += 1
+                    mutations.append((str(normalized_name) if isinstance(normalized_name, str) else "normalized_shape", invalid_shape, "normalized_shape_mismatch"))
     if family == "attention":
         key_name = str(contract.get("key", "key"))
         value_name = str(contract.get("value", "value"))
@@ -220,6 +226,9 @@ def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> Cas
         "batch_shape", "valid_matmul", "matmul_failure_reason",
         "index_range", "index_dtype", "valid_index_dim", "valid_index_dtype", "valid_index_shape",
         "src_shape", "valid_src_shape", "valid_index_contract", "index_failure_reason",
+        "normalized_shape", "channels", "resolved_num_groups",
+        "valid_normalized_shape", "valid_weight_shape", "valid_bias_shape", "valid_eps",
+        "valid_norm", "norm_failure_reason",
     }
     metadata = dict(case.metadata)
     metadata["resolved_operator_contract"] = {key: value for key, value in contract.items() if key not in stale_fields}
@@ -229,7 +238,7 @@ def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> Cas
 
 def _constraint_names(case: CaseSpec) -> list[str]:
     names = list(case.generation.constraints)
-    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.layer_norm", "torch.scaled_dot_product_attention"}:
+    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.group_norm", "torch.layer_norm", "torch.scaled_dot_product_attention"}:
         for name in ("operator_facts", "dtype_policy", "value_policy", "shape_relationships", "operator_contract", "dtype_promotion"):
             if name not in names:
                 names.append(name)

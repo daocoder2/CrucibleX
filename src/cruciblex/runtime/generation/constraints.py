@@ -177,7 +177,7 @@ class ShapeRelationshipsConstraint(ConstraintPlugin):
                 key_dims = _shape_dims(key.shape if key else None)
                 resolved = [source_dims[0], source_dims[1], source_dims[2], key_dims[2]] if key_dims and len(source_dims) == 4 and len(key_dims) == 4 else target_dims
             elif kind in {"last_dimension_as", "last_k_dimensions_as"} and source_dims and parameter.kind in {ParameterKind.TENSOR, ParameterKind.ATTRIBUTE, ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE}:
-                width = int(relation.get("k", 1)) if kind == "last_k_dimensions_as" else 1
+                width = len(parameter.shape.dims) if kind == "last_k_dimensions_as" and relation.get("k_from_target_rank") and parameter.shape else int(relation.get("k", 1)) if kind == "last_k_dimensions_as" else 1
                 resolved = source_dims[-max(1, width):]
             elif kind == "conv_weight_channels" and source_dims and target_dims:
                 groups = parameters.get(str(relation.get("groups", "groups")))
@@ -381,7 +381,7 @@ class OperatorFactsConstraint(ConstraintPlugin):
         if isinstance(library_names, str):
             library_names = [library_names]
         facts: dict[str, object] = {}
-        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.layer_norm", "torch.scaled_dot_product_attention"):
+        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.group_norm", "torch.layer_norm", "torch.scaled_dot_product_attention"):
             library_names = [*library_names, case.operator.name]
         if isinstance(library_names, list):
             for name in library_names:
@@ -589,11 +589,61 @@ class OperatorContractConstraint(ConstraintPlugin):
                     resolved["output_shape"] = [input_shape[0], weight_shape[0], height, width]
                     resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "norm" and input_shape is not None:
-            resolved["output_shape"] = list(input_shape)
-            resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
-            normalized = parameters.get(str(contract.get("normalized_shape", "normalized_shape")))
-            normalized_values = normalized.values if normalized else None
-            resolved["normalized_shape"] = list(normalized_values) if isinstance(normalized_values, (list, tuple)) else input_shape[-1:]
+            norm_type = str(contract.get("norm_type", "layer"))
+            resolved["norm_type"] = norm_type
+            if norm_type == "group":
+                channels = input_shape[1] if len(input_shape) >= 2 else 0
+                groups = _contract_attribute(contract, parameters, "num_groups")
+                weight = parameters.get(str(contract.get("weight", "weight")))
+                bias = parameters.get(str(contract.get("bias", "bias")))
+                weight_shape = _shape_dims(weight.shape if weight else None)
+                bias_shape = _shape_dims(bias.shape if bias else None)
+                valid_groups = isinstance(groups, int) and groups > 0 and channels > 0 and channels % groups == 0
+                valid_weight = weight_shape is None or weight_shape == [channels]
+                valid_bias = bias_shape is None or bias_shape == [channels]
+                resolved["channels"] = channels
+                resolved["resolved_num_groups"] = groups
+                resolved["valid_groups"] = valid_groups
+                resolved["valid_weight_shape"] = valid_weight
+                resolved["valid_bias_shape"] = valid_bias
+                resolved["valid_norm"] = valid_groups and valid_weight and valid_bias
+                if not valid_groups:
+                    resolved["norm_failure_reason"] = "group_channel_mismatch"
+                elif not valid_weight:
+                    resolved["norm_failure_reason"] = "norm_weight_shape_mismatch"
+                elif not valid_bias:
+                    resolved["norm_failure_reason"] = "norm_bias_shape_mismatch"
+            else:
+                normalized = parameters.get(str(contract.get("normalized_shape", "normalized_shape")))
+                normalized_values = normalized.values if normalized else None
+                normalized_shape = list(normalized_values) if isinstance(normalized_values, (list, tuple)) else _shape_dims(normalized.shape if normalized else None) or input_shape[-1:]
+                weight = parameters.get(str(contract.get("weight", "weight")))
+                bias = parameters.get(str(contract.get("bias", "bias")))
+                weight_shape = _shape_dims(weight.shape if weight else None)
+                bias_shape = _shape_dims(bias.shape if bias else None)
+                eps_parameter = parameters.get(str(contract.get("eps", "eps")))
+                eps = eps_parameter.values if eps_parameter and eps_parameter.values is not None else None
+                valid_suffix = bool(normalized_shape) and len(normalized_shape) <= len(input_shape) and input_shape[-len(normalized_shape):] == normalized_shape
+                valid_weight = weight_shape is None or weight_shape == normalized_shape
+                valid_bias = bias_shape is None or bias_shape == normalized_shape
+                valid_eps = eps is None or isinstance(eps, (int, float)) and eps > 0
+                resolved["normalized_shape"] = normalized_shape
+                resolved["valid_normalized_shape"] = valid_suffix
+                resolved["valid_weight_shape"] = valid_weight
+                resolved["valid_bias_shape"] = valid_bias
+                resolved["valid_eps"] = valid_eps
+                resolved["valid_norm"] = valid_suffix and valid_weight and valid_bias and valid_eps
+                if not valid_suffix:
+                    resolved["norm_failure_reason"] = "normalized_shape_mismatch"
+                elif not valid_weight:
+                    resolved["norm_failure_reason"] = "norm_weight_shape_mismatch"
+                elif not valid_bias:
+                    resolved["norm_failure_reason"] = "norm_bias_shape_mismatch"
+                elif not valid_eps:
+                    resolved["norm_failure_reason"] = "norm_eps_not_positive"
+            if resolved["valid_norm"]:
+                resolved["output_shape"] = list(input_shape)
+                resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "attention" and input_shape is not None:
             key_parameter = parameters.get(str(contract.get("key", "key")))
             value_parameter = parameters.get(str(contract.get("value", "value")))

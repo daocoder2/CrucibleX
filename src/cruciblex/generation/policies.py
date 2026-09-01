@@ -151,11 +151,19 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
             "bias": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "dimension_alias", "source": "weight", "source_dimension": 0, "dimension": 0}},
         },
     },
+    "torch.group_norm": {
+        "contract": {"family": "norm", "norm_type": "group", "input": "input", "num_groups": "num_groups", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [2, 5]}},
+            "weight": {"dtype_policy": {"library": "floating"}},
+            "bias": {"dtype_policy": {"library": "floating"}},
+        },
+    },
     "torch.layer_norm": {
         "contract": {"family": "norm", "input": "input", "normalized_shape": "normalized_shape", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [2, 4]}},
-            "normalized_shape": {"dtype_policy": {"library": "integer"}, "shape_relationship": {"kind": "last_k_dimensions_as", "source": "input", "k": 1}},
+            "normalized_shape": {"dtype_policy": {"library": "integer"}, "shape_relationship": {"kind": "last_k_dimensions_as", "source": "input", "k_from_target_rank": True}},
             "weight": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_shape_as", "source": "normalized_shape"}},
             "bias": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_shape_as", "source": "weight"}},
         },
