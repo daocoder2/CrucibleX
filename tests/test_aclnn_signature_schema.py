@@ -114,3 +114,33 @@ def test_capability_matrix_documents_supported_lifecycle_and_native_abi_boundari
     runtime.validate_capabilities(supported)
     with pytest.raises(ExecutionNotSupportedError, match="tensor-list ownership"):
         runtime.validate_capabilities(unsupported)
+
+
+def test_schema_preserves_layout_declarations_and_preflight_blocks_unsupported_abi():
+    spec = op_spec_from_case(_case({
+        "inputs": [{"name": "input", "kind": "tensor", "format": "FRACTAL_NZ", "strides": [4, 1], "storage_offset": 2}],
+        "outputs": [{"name": "output", "kind": "tensor", "like": "input", "dynamic": True}],
+    }))
+
+    assert spec.inputs[0].format == "FRACTAL_NZ"
+    assert spec.inputs[0].strides == (4, 1)
+    assert spec.inputs[0].storage_offset == 2
+    assert spec.outputs[0].dynamic is True
+    with pytest.raises(ExecutionNotSupportedError, match="only ND tensor format"):
+        AclnnRuntime().validate_capabilities(spec)
+
+    dynamic = AclnnOpSpec(
+        op_name="Example",
+        inputs=(AclnnArg(name="input"),),
+        outputs=(AclnnArg(name="output", role="output", dynamic=True),),
+    )
+    with pytest.raises(ExecutionNotSupportedError, match="dynamic output allocation"):
+        AclnnRuntime().validate_capabilities(dynamic)
+
+    strided = AclnnOpSpec(
+        op_name="Example",
+        inputs=(AclnnArg(name="input", strides=(4, 1)),),
+        outputs=(AclnnArg(name="output", role="output"),),
+    )
+    with pytest.raises(ExecutionNotSupportedError, match="declared tensor strides"):
+        AclnnRuntime().validate_capabilities(strided)

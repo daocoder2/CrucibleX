@@ -68,6 +68,10 @@ class AclnnArg:
     value: Any = None
     dtype: str | None = None
     shape: tuple[int, ...] | None = None
+    strides: tuple[int, ...] | None = None
+    storage_offset: int = 0
+    format: str = "ND"
+    dynamic: bool = False
     optional: bool = False
     keyword_only: bool = False
 
@@ -113,9 +117,21 @@ def _arg_from_mapping(item: dict[str, Any], index: int, *, role: str) -> AclnnAr
         value=item.get("value"),
         dtype=str(item.get("dtype")) if item.get("dtype") is not None else None,
         shape=_output_shape(item.get("shape")),
+        strides=_output_strides(item.get("strides")),
+        storage_offset=int(item.get("storage_offset", 0)),
+        format=str(item.get("format", "ND")),
+        dynamic=bool(item.get("dynamic", False)),
         optional=bool(item.get("optional", False)),
         keyword_only=bool(item.get("keyword_only", False)),
     )
+
+
+def _output_strides(value: Any) -> tuple[int, ...] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list) or any(not isinstance(item, int) or item <= 0 for item in value):
+        raise ExecutionNotSupportedError("ACLNN strides must be a list of positive integers")
+    return tuple(value)
 
 
 def _output_shape(value: Any) -> tuple[int, ...] | None:
@@ -253,9 +269,18 @@ class AclnnRuntime:
                 raise ExecutionNotSupportedError(
                     f"unsupported ACLNN argument kind: {arg.kind}; {capability.get('reason', 'no capability')}"
                 )
+            if arg.kind == "tensor":
+                if arg.format != "ND":
+                    raise ExecutionNotSupportedError("ACLNN bridge supports only ND tensor format")
+                if arg.storage_offset != 0:
+                    raise ExecutionNotSupportedError("ACLNN bridge does not support non-zero tensor storage_offset")
+                if arg.strides is not None:
+                    raise ExecutionNotSupportedError("ACLNN bridge does not preserve declared tensor strides")
         for output in spec.outputs:
             if output.kind != "tensor":
                 raise ExecutionNotSupportedError(f"unsupported ACLNN output kind: {output.kind}")
+            if output.dynamic:
+                raise ExecutionNotSupportedError("ACLNN bridge does not support dynamic output allocation")
 
     def _torch_npu(self):
         try:

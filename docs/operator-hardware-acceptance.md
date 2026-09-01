@@ -38,7 +38,7 @@
 
 `scripts/hardware_dtype_layout_gate.sh` 负责 bf16、layout、stride、special value 四条 lane，调用时必须显式传入 case。它验证 input dtype contract 与 device tensor dtype evidence。
 
-目前不应将 ACLNN layout/stride lane 标为端到端通过：bridge 会连续化输入且 descriptor 固定 ND/storage offset 0。ACLNN dynamic output 也尚未支持，因为 output descriptor 在 workspace 查询前必须静态创建。workspace 本身由 runtime 管理，不是 Case 参数。
+目前不应将 ACLNN layout/stride lane 标为端到端通过：schema 会保留 format、stride、storage offset 与 dynamic output 声明，preflight 会明确拒绝 non-ND format、任何显式 stride、非零 storage offset 和 dynamic output；bridge 仍会连续化输入且 descriptor 固定 ND/storage offset 0。ACLNN tensor-list 与 optional 参数也仍被 preflight 拒绝，因为缺少 tensor-list ownership 与 null ABI contract。workspace 本身由 runtime 管理，不是 Case 参数。
 
 Torch bf16 CPU/GPU shared-fingerprint compare 已通过，输入 contract 为 bf16 RNE 且 GPU dtype source 为 device tensor。special value、Torch layout/stride 可以由实际 device tensor case 进入 gate；ACLNN non-contiguous layout/stride 和 dynamic output 仍为 runtime capability blocker。
 
