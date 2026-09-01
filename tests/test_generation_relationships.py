@@ -554,6 +554,12 @@ def test_conv_norm_attention_facts_generate_legal_shapes_and_contracts():
     assert generated[2].metadata["resolved_operator_contract"]["output_shape"] == [2, 4, 3, 6]
 
 
+def test_layer_norm_multidimensional_suffix_is_generated_automatically():
+    case = CaseSpec(id=777, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), parameters=[_parameter("input", [2, 3, 4, 5]), ParameterSpec(name="normalized_shape", kind=ParameterKind.ATTRIBUTE_TUPLE, dtypes=["int64"], values=[9, 9], metadata={"shape_relationship": {"kind": "last_k_dimensions_as", "source": "input", "k": 2}})])
+    generated = expand_cases([case])[0]
+    assert generated.parameters[1].shape.dims == [4, 5]
+
+
 def test_conv_groups_and_attention_mask_are_generated_from_shape_contracts():
     conv = CaseSpec(id=775, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), parameters=[_parameter("input", [1, 4, 7, 7]), _parameter("weight", [6, 9, 3, 3]), ParameterSpec(name="groups", kind=ParameterKind.ATTRIBUTE, values=2)])
     generated_conv = expand_cases([conv])[0]
