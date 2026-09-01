@@ -388,7 +388,7 @@ class OperatorFactsConstraint(ConstraintPlugin):
         if isinstance(library_names, str):
             library_names = [library_names]
         facts: dict[str, object] = {}
-        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.group_norm", "torch.layer_norm", "torch.scaled_dot_product_attention"):
+        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.group_norm", "torch.instance_norm", "torch.layer_norm", "torch.scaled_dot_product_attention"):
             library_names = [*library_names, case.operator.name]
         if isinstance(library_names, list):
             for name in library_names:
@@ -620,6 +620,24 @@ class OperatorContractConstraint(ConstraintPlugin):
                     resolved["norm_failure_reason"] = "norm_weight_shape_mismatch"
                 elif not valid_bias:
                     resolved["norm_failure_reason"] = "norm_bias_shape_mismatch"
+            elif norm_type == "instance":
+                channels = input_shape[1] if len(input_shape) >= 2 else 0
+                weight = parameters.get(str(contract.get("weight", "weight")))
+                bias = parameters.get(str(contract.get("bias", "bias")))
+                weight_shape = _shape_dims(weight.shape if weight else None)
+                bias_shape = _shape_dims(bias.shape if bias else None)
+                eps_parameter = parameters.get(str(contract.get("eps", "eps")))
+                eps = eps_parameter.values if eps_parameter and eps_parameter.values is not None else None
+                valid_weight = weight_shape is None or weight_shape == [channels]
+                valid_bias = bias_shape is None or bias_shape == [channels]
+                valid_eps = eps is None or isinstance(eps, (int, float)) and eps > 0
+                resolved["channels"] = channels
+                resolved["valid_weight_shape"] = valid_weight
+                resolved["valid_bias_shape"] = valid_bias
+                resolved["valid_eps"] = valid_eps
+                resolved["valid_norm"] = len(input_shape) >= 3 and channels > 0 and valid_weight and valid_bias and valid_eps
+                if not resolved["valid_norm"]:
+                    resolved["norm_failure_reason"] = "instance_norm_parameter_mismatch"
             else:
                 normalized = parameters.get(str(contract.get("normalized_shape", "normalized_shape")))
                 normalized_values = normalized.values if normalized else None

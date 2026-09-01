@@ -25,6 +25,7 @@
 | transpose | `examples/cases/torch.transpose.npu.yaml` | Torch/NPU | dimension permutation device-tensor evidence |
 | reshape | `examples/cases/torch.reshape.npu.yaml` | Torch/NPU | int64 shape tuple and device-tensor evidence |
 | group_norm contract | `examples/cases/torch.group-norm.generated.yaml` | generation/contract | groups/channel/affine shape and invalid mutation sample |
+| instance_norm contract | `examples/cases/torch.instance-norm.generated.yaml` | generation/contract | channel/affine/eps and invalid mutation sample |
 | gather 3D contract | `examples/cases/torch.gather-3d.generated.yaml` | generation/contract | rank/non-index extent predicate and invalid sample |
 
 ## Required Gate Lanes

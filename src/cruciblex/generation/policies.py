@@ -159,6 +159,14 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
             "bias": {"dtype_policy": {"library": "floating"}},
         },
     },
+    "torch.instance_norm": {
+        "contract": {"family": "norm", "norm_type": "instance", "input": "input", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [3, 5]}},
+            "weight": {"dtype_policy": {"library": "floating"}},
+            "bias": {"dtype_policy": {"library": "floating"}},
+        },
+    },
     "torch.layer_norm": {
         "contract": {"family": "norm", "input": "input", "normalized_shape": "normalized_shape", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False},
         "parameters": {

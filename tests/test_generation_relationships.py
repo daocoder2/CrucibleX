@@ -611,7 +611,13 @@ def test_norm_contract_validates_group_channels_and_layer_suffix():
     assert bad_weight["norm_failure_reason"] == "norm_weight_shape_mismatch"
     assert "output_shape" not in bad_weight
 
-    layer = CaseSpec(id=795, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), parameters=[_parameter("input", [2, 3, 4, 5]), _parameter("normalized_shape", [4, 5]), _parameter("weight", [4, 5]), _parameter("bias", [4, 5])])
+    instance = CaseSpec(id=795, operator=OperatorSpec(name="torch.instance_norm"), invocation=InvocationSpec(api="torch.instance_norm", api_type="function"), parameters=[_parameter("input", [2, 6, 4, 4]), _parameter("weight", [6]), _parameter("bias", [6])])
+    instance_contract = expand_cases([instance])[0].metadata["resolved_operator_contract"]
+    assert instance_contract["norm_type"] == "instance"
+    assert instance_contract["valid_norm"] is True
+    assert instance_contract["output_shape"] == [2, 6, 4, 4]
+
+    layer = CaseSpec(id=796, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), parameters=[_parameter("input", [2, 3, 4, 5]), _parameter("normalized_shape", [4, 5]), _parameter("weight", [4, 5]), _parameter("bias", [4, 5])])
     layer_contract = expand_cases([layer])[0].metadata["resolved_operator_contract"]
     assert layer_contract["valid_normalized_shape"] is True
     assert layer_contract["valid_norm"] is True

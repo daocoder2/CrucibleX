@@ -139,7 +139,11 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
             if name in parameters:
                 mutations.append((name, value, reason))
     if family == "norm":
-        if contract.get("norm_type") == "group":
+        if contract.get("norm_type") == "instance":
+            eps_name = str(contract.get("eps", "eps"))
+            if eps_name in parameters:
+                mutations.append((eps_name, 0.0, "norm_eps_not_positive"))
+        elif contract.get("norm_type") == "group":
             groups_name = str(contract.get("num_groups", "num_groups"))
             groups = parameters.get(groups_name)
             if groups and isinstance(groups.values, int):
@@ -245,7 +249,7 @@ def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> Cas
 
 def _constraint_names(case: CaseSpec) -> list[str]:
     names = list(case.generation.constraints)
-    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.group_norm", "torch.layer_norm", "torch.scaled_dot_product_attention"}:
+    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose", "torch.conv2d", "torch.group_norm", "torch.instance_norm", "torch.layer_norm", "torch.scaled_dot_product_attention"}:
         for name in ("operator_facts", "dtype_policy", "value_policy", "shape_relationships", "operator_contract", "dtype_promotion"):
             if name not in names:
                 names.append(name)
