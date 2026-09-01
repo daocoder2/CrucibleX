@@ -434,3 +434,68 @@ def test_declarative_conv_norm_attention_and_aclnn_contracts_remain_capability_o
     assert contract["runtime_supported"] is False
     assert contract["aclnn"]["workspace"] == "runtime_managed"
     assert contract["aclnn"]["dynamic_output"] is False
+
+
+def test_operator_contract_generates_invalid_dim_k_index_and_reshape_variants():
+    topk = CaseSpec(
+        id=750,
+        operator=OperatorSpec(name="torch.topk"),
+        invocation=InvocationSpec(api="torch.topk", api_type="function"),
+        generation=GenerationSpec(invalid_count=2),
+        parameters=[
+            _parameter("input", [2, 5]),
+            ParameterSpec(name="k", kind=ParameterKind.ATTRIBUTE, values=3),
+            ParameterSpec(name="dim", kind=ParameterKind.ATTRIBUTE, values=1),
+        ],
+    )
+    indexed = CaseSpec(
+        id=751,
+        operator=OperatorSpec(name="torch.index_select"),
+        invocation=InvocationSpec(api="torch.index_select", api_type="function"),
+        generation=GenerationSpec(invalid_count=2),
+        parameters=[
+            _parameter("input", [2, 5]),
+            _parameter("index", [2]),
+            ParameterSpec(name="dim", kind=ParameterKind.ATTRIBUTE, values=1),
+        ],
+    )
+    reshaped = CaseSpec(
+        id=752,
+        operator=OperatorSpec(name="torch.reshape"),
+        invocation=InvocationSpec(api="torch.reshape", api_type="function"),
+        generation=GenerationSpec(invalid_count=1),
+        parameters=[_parameter("input", [2, 3]), ParameterSpec(name="shape", kind=ParameterKind.ATTRIBUTE_LIST, values=[3, 2])],
+    )
+
+    expanded = expand_cases([topk, indexed, reshaped])
+
+    assert [case.metadata["contract_invalid_reason"] for case in expanded[1:3]] == ["dim_out_of_range", "k_exceeds_axis"]
+    assert expanded[2].parameters[1].values == 6
+    assert [case.metadata["contract_invalid_reason"] for case in expanded[4:6]] == ["dim_out_of_range", "index_out_of_range"]
+    assert expanded[5].parameters[1].metadata["selected_invalid_value"] == 5
+    assert expanded[7].parameters[1].values == [3, 3]
+
+
+def test_where_reshape_and_transpose_contracts_resolve_output_shapes():
+    where = CaseSpec(
+        id=753,
+        operator=OperatorSpec(name="torch.where"),
+        invocation=InvocationSpec(api="torch.where", api_type="function"),
+        parameters=[
+            ParameterSpec(name="condition", kind=ParameterKind.TENSOR, shape=ShapeSpec(dims=[2, 3])),
+            _parameter("input", [2, 3]),
+            _parameter("other", [1, 3]),
+        ],
+    )
+    transpose = CaseSpec(
+        id=754,
+        operator=OperatorSpec(name="torch.transpose"),
+        invocation=InvocationSpec(api="torch.transpose", api_type="function"),
+        parameters=[_parameter("input", [2, 3, 4]), ParameterSpec(name="dim0", kind=ParameterKind.ATTRIBUTE, values=0), ParameterSpec(name="dim1", kind=ParameterKind.ATTRIBUTE, values=2)],
+    )
+
+    expanded = expand_cases([where, transpose])
+
+    assert expanded[0].parameters[0].dtypes == ["bool"]
+    assert expanded[0].metadata["resolved_operator_contract"]["output_shape"] == [2, 3]
+    assert expanded[1].metadata["resolved_operator_contract"]["output_shape"] == [4, 3, 2]

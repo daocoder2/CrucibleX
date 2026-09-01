@@ -115,6 +115,34 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
             "mat2": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [3, 3]}},
         },
     },
+    "torch.where": {
+        "contract": {"family": "where", "condition": "condition", "input": "input", "other": "other"},
+        "parameters": {
+            "condition": {"dtypes": ["bool"], "dtype_policy": {"library": "boolean"}},
+            "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"broadcast_group": "where"}},
+            "other": {"dtype_policy": {"library": "floating"}, "shape_policy": {"broadcast_group": "where"}},
+        },
+    },
+    "torch.masked_fill": {
+        "contract": {"family": "masked_fill", "input": "input", "mask": "mask", "value": "value"},
+        "parameters": {
+            "input": {"dtype_policy": {"library": "floating"}},
+            "mask": {"dtype_policy": {"library": "boolean"}, "shape_relationship": {"kind": "broadcastable_with", "source": "input"}},
+            "value": {"dtype_policy": {"library": "floating"}},
+        },
+    },
+    "torch.reshape": {
+        "contract": {"family": "reshape", "input": "input", "shape": "shape", "numel_preserved": True},
+        "parameters": {"input": {"dtype_policy": {"library": "floating"}}},
+    },
+    "torch.view": {
+        "contract": {"family": "reshape", "input": "input", "shape": "shape", "numel_preserved": True, "contiguous_required": True},
+        "parameters": {"input": {"dtype_policy": {"library": "floating"}}},
+    },
+    "torch.transpose": {
+        "contract": {"family": "transpose", "input": "input", "dim0_parameter": "dim0", "dim1_parameter": "dim1", "rank_preserved": True},
+        "parameters": {"input": {"dtype_policy": {"library": "floating"}}},
+    },
     "torch.conv2d": {"contract": {"family": "conv", "input": "input", "weight": "weight", "bias": "bias", "attributes": ["stride", "padding", "dilation", "groups"], "shape_formula": "NCHW_OIHW", "runtime_supported": False}},
     "torch.layer_norm": {"contract": {"family": "norm", "input": "input", "normalized_shape": "normalized_shape", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False}},
     "torch.scaled_dot_product_attention": {"contract": {"family": "attention", "query": "query", "key": "key", "value": "value", "mask": "attn_mask", "dropout": "dropout_p", "causal": "is_causal", "runtime_supported": False}},

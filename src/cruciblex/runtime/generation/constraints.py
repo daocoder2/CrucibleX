@@ -342,7 +342,7 @@ class OperatorFactsConstraint(ConstraintPlugin):
         if isinstance(library_names, str):
             library_names = [library_names]
         facts: dict[str, object] = {}
-        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select"):
+        if case.operator.name in ("torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose"):
             library_names = [*library_names, case.operator.name]
         if isinstance(library_names, list):
             for name in library_names:
@@ -437,6 +437,27 @@ class OperatorContractConstraint(ConstraintPlugin):
                 resolved["output_shape"] = list(input_shape)
             elif mode == "select":
                 resolved["output_shape"] = [value for position, value in enumerate(input_shape) if position != index_dim % len(input_shape)]
+        elif family in {"where", "masked_fill"} and input_shape is not None:
+            resolved["output_shape"] = list(input_shape)
+            resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+        elif family == "reshape" and input_shape is not None:
+            target = _contract_attribute(contract, parameters, "shape")
+            if (
+                isinstance(target, (list, tuple))
+                and all(isinstance(value, int) and value >= 0 for value in target)
+                and _num_elements(input_shape) == _num_elements(list(target))
+            ):
+                resolved["output_shape"] = list(target)
+                resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+        elif family == "transpose" and input_shape is not None:
+            dim0 = _contract_attribute(contract, parameters, "dim0")
+            dim1 = _contract_attribute(contract, parameters, "dim1")
+            if isinstance(dim0, int) and isinstance(dim1, int):
+                output_shape = list(input_shape)
+                first, second = dim0 % len(output_shape), dim1 % len(output_shape)
+                output_shape[first], output_shape[second] = output_shape[second], output_shape[first]
+                resolved["output_shape"] = output_shape
+                resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "matmul":
             left = _shape_dims(parameters.get(str(contract.get("left", "input"))).shape if parameters.get(str(contract.get("left", "input"))) else None)
             right = _shape_dims(parameters.get(str(contract.get("right", "other"))).shape if parameters.get(str(contract.get("right", "other"))) else None)

@@ -41,6 +41,7 @@ def _apply_constraints(case: CaseSpec, index: int, count: int, invalid: bool, in
     if invalid:
         generated = _mark_invalid_case(generated, invalid_index or 0)
         generated = _apply_invalid_values(generated, invalid_index or 0)
+        generated = _apply_contract_invalid_value(generated, invalid_index or 0)
     return generated
 
 
@@ -91,9 +92,61 @@ def _apply_invalid_values(case: CaseSpec, invalid_index: int) -> CaseSpec:
     return case.model_copy(update={"parameters": parameters})
 
 
+def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpec:
+    contract = case.metadata.get("resolved_operator_contract")
+    if not isinstance(contract, dict):
+        return case
+    parameters = {parameter.name: parameter for parameter in case.parameters if parameter.name}
+    input_parameter = parameters.get(str(contract.get("input", "input")))
+    input_shape = list(input_parameter.shape.dims) if input_parameter and input_parameter.shape and input_parameter.shape.dims else None
+    if not input_shape:
+        return case
+    family = contract.get("family")
+    dim_name = str(contract.get("dim_parameter", "dim"))
+    mutations: list[tuple[str, object, str]] = []
+    if family in {"reduce", "sort", "topk", "index", "transpose"}:
+        mutations.append((dim_name, len(input_shape), "dim_out_of_range"))
+    if family == "topk":
+        dim_parameter = parameters.get(dim_name)
+        dim = dim_parameter.values if dim_parameter else None
+        axis = int(dim) % len(input_shape) if isinstance(dim, int) else len(input_shape) - 1
+        mutations.append((str(contract.get("k_parameter", "k")), input_shape[axis] + 1, "k_exceeds_axis"))
+    if family == "index":
+        dim_parameter = parameters.get(dim_name)
+        dim = dim_parameter.values if dim_parameter else None
+        axis = int(dim) % len(input_shape) if isinstance(dim, int) else 0
+        mutations.append((str(contract.get("index", "index")), input_shape[axis], "index_out_of_range"))
+    if family == "reshape":
+        target_name = str(contract.get("shape", "shape"))
+        target = parameters.get(target_name)
+        if target and isinstance(target.values, (list, tuple)) and target.values:
+            invalid_shape = list(target.values)
+            invalid_shape[-1] = int(invalid_shape[-1]) + 1
+            mutations.append((target_name, invalid_shape, "reshape_numel_mismatch"))
+    if not mutations:
+        return case
+    name, value, reason = mutations[invalid_index % len(mutations)]
+    updated = []
+    for parameter in case.parameters:
+        if parameter.name != name:
+            updated.append(parameter)
+            continue
+        metadata = dict(parameter.metadata)
+        metadata["contract_invalid_reason"] = reason
+        if parameter.kind.value in {"attribute", "scalar", "attribute_list", "attribute_tuple", "scalar_list", "scalar_tuple"}:
+            parameter = parameter.model_copy(update={"values": value, "metadata": metadata})
+        else:
+            metadata["selected_invalid_value"] = value
+            parameter = parameter.model_copy(update={"metadata": metadata})
+        updated.append(parameter)
+    metadata = dict(case.metadata)
+    metadata["contract_invalid_reason"] = reason
+    return case.model_copy(update={"parameters": updated, "metadata": metadata})
+
+
 def _constraint_names(case: CaseSpec) -> list[str]:
     names = list(case.generation.constraints)
-    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm"}:
+    if isinstance(case.generation.metadata.get("operator_facts"), dict) or case.generation.metadata.get("operator_fact_library") or case.operator.name in {"torch.add", "torch.matmul", "torch.softmax", "torch.sum", "torch.mean", "torch.norm", "torch.sort", "torch.topk", "torch.index_select", "torch.select", "torch.gather", "torch.scatter", "torch.bmm", "torch.where", "torch.masked_fill", "torch.reshape", "torch.view", "torch.transpose"}:
         for name in ("operator_facts", "dtype_policy", "value_policy", "shape_relationships", "operator_contract", "dtype_promotion"):
             if name not in names:
                 names.append(name)
