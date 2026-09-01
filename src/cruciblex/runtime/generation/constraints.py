@@ -530,7 +530,7 @@ class OperatorContractConstraint(ConstraintPlugin):
                 resolved["valid_geometry"] = valid_geometry
                 height = (input_shape[2] + 2 * padding[0] - effective_kernel[0]) // stride[0] + 1
                 width = (input_shape[3] + 2 * padding[1] - effective_kernel[1]) // stride[1] + 1
-                if height > 0 and width > 0:
+                if height > 0 and width > 0 and valid_groups and valid_geometry:
                     resolved["output_shape"] = [input_shape[0], weight_shape[0], height, width]
                     resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "norm" and input_shape is not None:
