@@ -1,0 +1,23 @@
+# Fixed-input torch.add case for auditable CPU/GPU/NPU accuracy evidence.
+cases:
+  - id: 901
+    operator: {name: torch.add}
+    invocation: {api: torch.add, api_type: function, executor: torch}
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-6, rtol: 1.0e-6}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [4, 4]}
+        values:
+          [[-1.0, -0.8666666746139526, -0.7333333492279053, -0.6000000238418579], [-0.46666666865348816, -0.3333333432674408, -0.20000000298023224, -0.06666667014360428], [0.06666667014360428, 0.20000000298023224, 0.3333333432674408, 0.46666666865348816], [0.6000000238418579, 0.7333333492279053, 0.8666666746139526, 1.0]]
+      - name: other
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [4, 4]}
+        values:
+          [[0.0, 0.13333334028720856, 0.2666666805744171, 0.4000000059604645], [0.5333333611488342, 0.6666666865348816, 0.800000011920929, 0.9333333373069763], [1.0666667222976685, 1.2000000476837158, 1.3333333730697632, 1.4666666984558105], [1.600000023841858, 1.7333333492279053, 1.8666666746139526, 2.0]]

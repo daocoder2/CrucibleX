@@ -29,6 +29,7 @@
 | gather 3D contract | `examples/cases/torch.gather-3d.generated.yaml` | generation/contract | rank/non-index extent predicate and invalid sample |
 | view contract | `examples/cases/torch.view.generated.yaml` | generation/contract | contiguous requirement and non-contiguous invalid sample |
 | matmul broadcast contract | `examples/cases/torch.matmul-broadcast.generated.yaml` | generation/contract | batched matmul batch broadcast and invalid sample |
+| fixed add aggregate evidence | `examples/cases/torch.add.fixed-hardware.yaml` | Torch CPU/GPU/NPU | exact fp32 inputs; NPU accuracy passed with auditable `/out` artifacts; CPU/GPU run and aggregate gate pending GPU image build |
 
 ## Required Gate Lanes
 

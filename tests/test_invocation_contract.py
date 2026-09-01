@@ -78,10 +78,15 @@ def test_numpy_executor_applies_typed_keyword_binding():
     "examples/cases/torch.gather-3d.generated.yaml",
     "examples/cases/torch.view.generated.yaml",
     "examples/cases/torch.matmul-broadcast.generated.yaml",
+    "examples/cases/torch.add.fixed-hardware.yaml",
 ])
 def test_advanced_generated_examples_load_and_expand(path):
     cases = expand_cases(load_cases(path))
 
+    if path.endswith("torch.add.fixed-hardware.yaml"):
+        assert len(cases) == 1
+        assert all(parameter.values is not None for parameter in cases[0].parameters)
+        return
     assert len(cases) == 2
     assert cases[0].metadata["resolved_operator_contract"]
     assert cases[1].metadata["expected_invalid"] is True
