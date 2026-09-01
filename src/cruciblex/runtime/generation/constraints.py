@@ -519,8 +519,17 @@ class OperatorContractConstraint(ConstraintPlugin):
                 stride = _positive_pair(_contract_attribute(contract, parameters, "stride"), 1)
                 padding = _positive_pair(_contract_attribute(contract, parameters, "padding"), 0)
                 dilation = _positive_pair(_contract_attribute(contract, parameters, "dilation"), 1)
-                height = (input_shape[2] + 2 * padding[0] - dilation[0] * (weight_shape[2] - 1) - 1) // stride[0] + 1
-                width = (input_shape[3] + 2 * padding[1] - dilation[1] * (weight_shape[3] - 1) - 1) // stride[1] + 1
+                groups = _contract_attribute(contract, parameters, "groups")
+                groups = int(groups) if isinstance(groups, int) else 1
+                valid_groups = groups > 0 and input_shape[1] % groups == 0 and weight_shape[0] % groups == 0 and weight_shape[1] * groups == input_shape[1]
+                effective_kernel = [dilation[0] * (weight_shape[2] - 1) + 1, dilation[1] * (weight_shape[3] - 1) + 1]
+                valid_geometry = all(value > 0 for value in stride + dilation) and all(value >= 0 for value in padding) and effective_kernel[0] <= input_shape[2] + 2 * padding[0] and effective_kernel[1] <= input_shape[3] + 2 * padding[1]
+                resolved["groups"] = groups
+                resolved["valid_groups"] = valid_groups
+                resolved["effective_kernel"] = effective_kernel
+                resolved["valid_geometry"] = valid_geometry
+                height = (input_shape[2] + 2 * padding[0] - effective_kernel[0]) // stride[0] + 1
+                width = (input_shape[3] + 2 * padding[1] - effective_kernel[1]) // stride[1] + 1
                 if height > 0 and width > 0:
                     resolved["output_shape"] = [input_shape[0], weight_shape[0], height, width]
                     resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
