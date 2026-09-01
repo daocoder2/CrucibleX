@@ -1,0 +1,28 @@
+# Torch NPU topk contract sample.
+cases:
+  - id: 207
+    operator: {name: torch.topk}
+    invocation: {api: torch.topk, api_type: function, executor: torch}
+    oracle:
+      comparison: allclose
+      reference_executor: torch
+      tolerance: {atol: 1.0e-5, rtol: 1.0e-5}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 5]}
+        values: [[1.0, 5.0, 2.0, 4.0, 3.0], [9.0, 6.0, 8.0, 7.0, 0.0]]
+      - name: k
+        kind: attribute
+        value_range: {valid: [3]}
+      - name: dim
+        kind: attribute
+        value_range: {valid: [1]}
+      - name: largest
+        kind: attribute
+        value_range: {valid: [true]}
+      - name: sorted
+        kind: attribute
+        value_range: {valid: [true]}

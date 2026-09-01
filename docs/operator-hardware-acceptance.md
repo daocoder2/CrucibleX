@@ -10,15 +10,18 @@
 | reduce | `examples/cases/aclnn.max_dim.npu.yaml` | ACLNN/NPU | dim/keepdim/multi-output indices sample |
 | sort | `examples/cases/aclnn.sort.npu.yaml` | ACLNN/NPU | dim/descending/multi-output sample |
 | matmul | `examples/cases/torch.matmul.hardware.yaml` | Torch hardware | rank-2 matmul sample |
+| topk | `examples/cases/torch.topk.npu.yaml` | Torch/NPU | k/dim/largest/sorted device-tensor evidence |
+| index-select | `examples/cases/torch.index_select.npu.yaml` | Torch/NPU | int64 index and dim device-tensor evidence |
+| bmm | `examples/cases/torch.bmm.npu.yaml` | Torch/NPU | batch matmul device-tensor evidence |
 
 ## Required Gate Lanes
 
 使用 `scripts/operator_contract_hardware_gate.sh` 时，调用方显式提供 `CASE_REDUCE`、`CASE_SORT`、`CASE_INDEX` 与 `CASE_MATMUL`。gate 对每条 lane 执行 accuracy，检查 summary、input dtype contract、device dtype evidence 与 hardware evidence。
 
 - `CASE_REDUCE` 可使用 checked-in ACLNN mean 或 max-dim case。
-- `CASE_SORT` 可使用 checked-in ACLNN sort case。topk 需要独立的、经 capability preflight 支持的 public case。
-- `CASE_INDEX` 当前必须由目标 Torch/ACLNN 环境提供受支持的 index/select/gather/scatter case；仓库尚无已验证的公开硬件 case。
-- `CASE_MATMUL` 可使用 checked-in Torch matmul case。bmm 需要独立的 public case。
+- `CASE_SORT` 可使用 checked-in ACLNN sort case；`torch.topk.npu.yaml` 已独立通过 NPU device-tensor 验收。
+- `CASE_INDEX` 可使用已通过 NPU 验收的 `torch.index_select.npu.yaml`；select/gather/scatter 仍需要各自的公开 case，不能由 index-select 外推。
+- `CASE_MATMUL` 可使用 checked-in Torch matmul case；`torch.bmm.npu.yaml` 已独立通过 NPU device-tensor 验收。
 
 ## Dtype And Layout Lanes
 
