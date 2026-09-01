@@ -1,0 +1,10 @@
+# Torch NPU reshape contract sample.
+cases:
+  - id: 217
+    operator: {name: torch.reshape}
+    invocation: {api: torch.reshape, api_type: function, executor: torch}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3]}, values: [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]}
+      - {name: shape, kind: attribute_tuple, dtypes: [int64], values: [3, 2]}

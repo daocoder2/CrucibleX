@@ -18,6 +18,10 @@
 | select | `examples/cases/torch.select.npu.yaml` | Torch/NPU | selected-dimension device-tensor evidence |
 | bf16 | `examples/cases/torch.bf16.npu.yaml` | Torch/NPU | bfloat16 RNE input contract and device-tensor evidence |
 | special values | `examples/cases/torch.special-values.npu.yaml` | Torch/NPU | Inf/-Inf/subnormal device-tensor evidence |
+| where | `examples/cases/torch.where.npu.yaml` | Torch/NPU | boolean condition and broadcast value tensors |
+| masked_fill | `examples/cases/torch.masked-fill.npu.yaml` | Torch/NPU | boolean mask and scalar fill value |
+| transpose | `examples/cases/torch.transpose.npu.yaml` | Torch/NPU | dimension permutation device-tensor evidence |
+| reshape | `examples/cases/torch.reshape.npu.yaml` | Torch/NPU | int64 shape tuple and device-tensor evidence |
 
 ## Required Gate Lanes
 

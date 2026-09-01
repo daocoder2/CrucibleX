@@ -1,0 +1,11 @@
+# Torch NPU where contract sample.
+cases:
+  - id: 215
+    operator: {name: torch.where}
+    invocation: {api: torch.where, api_type: function, executor: torch}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    parameters:
+      - {name: condition, kind: tensor, dtypes: [bool], shape: {dims: [2, 2]}, values: [[true, false], [false, true]]}
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}, values: [[1.0, 2.0], [3.0, 4.0]]}
+      - {name: other, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}, values: [[5.0, 6.0], [7.0, 8.0]]}

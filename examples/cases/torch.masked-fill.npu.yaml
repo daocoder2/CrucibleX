@@ -1,0 +1,11 @@
+# Torch NPU masked_fill contract sample.
+cases:
+  - id: 216
+    operator: {name: torch.masked_fill}
+    invocation: {api: torch.masked_fill, api_type: function, executor: torch}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}, values: [[1.0, 2.0], [3.0, 4.0]]}
+      - {name: mask, kind: tensor, dtypes: [bool], shape: {dims: [2, 2]}, values: [[true, false], [false, true]]}
+      - {name: value, kind: scalar, dtypes: [fp32], value_range: {valid: [-1.0]}}

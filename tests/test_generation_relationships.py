@@ -62,6 +62,15 @@ def test_transpose_relationship_rejects_invalid_axes_without_mutating_shape():
     assert expanded.parameters[1].shape.dims == [5, 6, 7]
 
 
+def test_integer_attribute_collections_preserve_integer_items_and_tuple_abi():
+    generator = DefaultInputGenerator()
+    shape_list = ParameterSpec(name="shape", kind=ParameterKind.ATTRIBUTE_LIST, dtypes=["int64"], values=[3, 2])
+    shape_tuple = shape_list.model_copy(update={"kind": ParameterKind.ATTRIBUTE_TUPLE})
+
+    assert generator._generate_parameter(shape_list) == [3, 2]
+    assert generator._generate_parameter(shape_tuple) == (3, 2)
+
+
 def test_exact_values_are_generated_and_shape_mismatch_is_rejected():
     parameter = _parameter("input", [2, 2]).model_copy(update={"values": [[1, 2], [3, 4]]})
     generator = DefaultInputGenerator()
