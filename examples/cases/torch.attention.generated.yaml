@@ -2,7 +2,7 @@
 cases:
   - id: 303
     operator: {name: torch.scaled_dot_product_attention}
-    invocation: {api: torch.scaled_dot_product_attention, api_type: function, executor: torch}
+    invocation: {api: torch.nn.functional.scaled_dot_product_attention, api_type: function, executor: torch}
     generator: default
     parameters:
       - name: query
