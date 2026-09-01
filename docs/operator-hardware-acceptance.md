@@ -47,7 +47,7 @@
 | --- | --- | --- | --- | --- | --- |
 | reduce | dim/keepdim/dtype and reduction shape | output shape/dtype | dim out of range | `aclnn.mean.npu.yaml`, `torch.mean.hardware.yaml` | reduce CPU/GPU shared-fingerprint compare passed; ACLNN/NPU evidence recorded |
 | topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml` | topk CPU/GPU shared-fingerprint compare passed; Torch/NPU and ACLNN/NPU evidence recorded |
-| index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | index-select and where CPU/GPU shared-fingerprint compares passed; Torch/NPU index/mask evidence recorded |
+| index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | index-select, gather, scatter and where CPU/GPU shared-fingerprint compares passed; Torch/NPU index/mask evidence recorded |
 | reshape/layout | numel preservation, tuple shape, transpose rank | output shape/dtype and layout policy | numel mismatch, invalid dimensions | `torch.reshape.npu.yaml`, `torch.transpose.npu.yaml` | reshape/transpose CPU/GPU shared-fingerprint compares passed; Torch/NPU passed; ACLNN layout/stride remains blocked by bridge semantics |
 | matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | bmm CPU/GPU shared-fingerprint compare passed; Torch/NPU evidence recorded; matmul CPU/GPU also passed |
 | conv/norm/attention | channel aliases, normalized shape, QKV batch/head/embed aliases | formula-derived output shape/dtype | channel, normalized-shape, head mismatch | `torch.conv2d.generated.yaml`, `torch.layer-norm.generated.yaml`, `torch.attention.generated.yaml` | legal conv2d/layer_norm/attention CPU/GPU shared-fingerprint compares passed; invalid variants remain negative validation; runtime support explicitly capability-gated |
@@ -61,6 +61,6 @@
 
 ## Local Probe
 
-本地开发环境未安装 Torch/NPU runtime；真实 Torch/NPU lane 已在配置的 NPU 主机设备专用镜像中执行。当前已取得 reduce、sort、topk、index-select、gather、scatter、select、bmm、bf16、special-value、where、masked_fill、reshape 与 transpose 的 NPU device-tensor evidence。CPU NumPy broadcast case 已通过；CPU Torch lane 因缺少 torch 被跳过。CPU/GPU/NPU 聚合 gate 还需要实际 GPU/NPU archives，不能用生成层测试替代。
+本地开发环境未安装 Torch/NPU runtime；真实 Torch/NPU lane 已在配置的 NPU 主机设备专用镜像中执行。当前已取得 reduce、sort、topk、index-select、gather、scatter、select、bmm、bf16、special-value、where、masked_fill、reshape 与 transpose 的 NPU device-tensor evidence。CPU NumPy broadcast case 已通过；CPU/GPU Torch mean、matmul、bmm、where、topk、index-select、reshape、transpose、masked_fill 与复杂算子合法 case 均已通过。CPU/GPU/NPU 聚合 gate 还需要实际 GPU/NPU archives，不能用生成层测试替代。
 
 Gate 依赖和设备可见性是两个独立前置条件；两者均满足后，才可把 gate 结果记为真实硬件 evidence。
