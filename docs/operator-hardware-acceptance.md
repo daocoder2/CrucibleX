@@ -45,7 +45,7 @@
 | Operator family | Parameter constraints | Output evidence contract | Invalid sample | Checked-in example | Backend execution status |
 | --- | --- | --- | --- | --- | --- |
 | reduce | dim/keepdim/dtype and reduction shape | output shape/dtype | dim out of range | `aclnn.mean.npu.yaml` | ACLNN/NPU passed; CPU/GPU matrix lane available through cross-device gate |
-| topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml` | Torch/NPU and ACLNN/NPU evidence recorded |
+| topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml` | topk CPU/GPU shared-fingerprint compare passed; Torch/NPU and ACLNN/NPU evidence recorded |
 | index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | where CPU/GPU passed with shared fingerprint; Torch/NPU index/mask evidence recorded |
 | reshape/layout | numel preservation, tuple shape, transpose rank | output shape/dtype and layout policy | numel mismatch, invalid dimensions | `torch.reshape.npu.yaml`, `torch.transpose.npu.yaml` | Torch/NPU passed; ACLNN layout/stride remains blocked by bridge semantics |
 | matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | Torch/NPU passed; CPU/GPU matmul passed with shared case fingerprint |
