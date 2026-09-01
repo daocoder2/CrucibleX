@@ -48,11 +48,11 @@
 | topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml` | Torch/NPU and ACLNN/NPU evidence recorded |
 | index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | Torch/NPU passed; CPU/GPU require matching archive lane |
 | reshape/layout | numel preservation, tuple shape, transpose rank | output shape/dtype and layout policy | numel mismatch, invalid dimensions | `torch.reshape.npu.yaml`, `torch.transpose.npu.yaml` | Torch/NPU passed; ACLNN layout/stride remains blocked by bridge semantics |
-| matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | Torch/NPU passed; CPU/GPU require matching archive lane |
+| matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | Torch/NPU passed; CPU/GPU matmul passed with shared case fingerprint |
 | conv/norm/attention | channel aliases, normalized shape, QKV batch/head/embed aliases | formula-derived output shape/dtype | channel, normalized-shape, head mismatch | `torch.conv2d.generated.yaml`, `torch.layer-norm.generated.yaml`, `torch.attention.generated.yaml` | automatic generation verified; runtime support explicitly capability-gated |
 | ACLNN signature | native scalar/array ABI, output dtype/shape, lifecycle | parsed signature and output descriptors | unsupported ABI kind/shape | `aclnn.mean.npu.yaml` | ACLNN mean/max-dim/sort NPU evidence; optional/list ABI blockers documented |
 
-复杂算子的 generated 示例会同时产生合法 case、`expected_invalid` case、解析后的 `resolved_operator_contract` 与输出 shape。CPU/GPU/NPU 三侧真实矩阵由 `scripts/cpu_gpu_npu_accuracy_gate.sh` 汇总；ACLNN 作为 NPU-side executor 单独记录，不能替代 CPU/GPU evidence。
+复杂算子的 generated 示例会同时产生合法 case、`expected_invalid` case、解析后的 `resolved_operator_contract` 与输出 shape。当前真实执行矩阵：CPU NumPy broadcast 已通过；CPU/GPU Torch matmul 已在同一容器、同一 case fingerprint 下通过；NPU Torch/ACLNN 多条 lane 已通过。CPU/GPU/NPU 三侧聚合仍由 `scripts/cpu_gpu_npu_accuracy_gate.sh` 汇总；ACLNN 作为 NPU-side executor 单独记录，不能替代 CPU/GPU evidence。
 
 ## Evidence Rule
 
