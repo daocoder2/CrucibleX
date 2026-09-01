@@ -208,11 +208,18 @@ def _shape_dims(shape: ShapeSpec | None) -> list[int] | None:
 
 
 def _positive_pair(value: object, default: int) -> tuple[int, int]:
-    if isinstance(value, int) and value > 0:
-        return value, value
-    if isinstance(value, (list, tuple)) and len(value) == 2 and all(isinstance(item, int) and item > 0 for item in value):
-        return int(value[0]), int(value[1])
-    return default, default
+    return _validate_conv_pair(value, default, allow_zero=False)[0]
+
+
+def _validate_conv_pair(value: object, default: int, *, allow_zero: bool) -> tuple[tuple[int, int], bool]:
+    if value is None:
+        return (default, default), True
+    minimum = 0 if allow_zero else 1
+    if isinstance(value, int) and value >= minimum:
+        return (value, value), True
+    if isinstance(value, (list, tuple)) and len(value) == 2 and all(isinstance(item, int) and item >= minimum for item in value):
+        return (int(value[0]), int(value[1])), True
+    return (default, default), False
 
 
 def _resolve_shape_relationship(kind: object, source: list[int] | None, target: list[int] | None, relation: dict[object, object]) -> list[int] | None:
@@ -571,14 +578,14 @@ class OperatorContractConstraint(ConstraintPlugin):
             weight_parameter = parameters.get(str(contract.get("weight", "weight")))
             weight_shape = _shape_dims(weight_parameter.shape if weight_parameter else None)
             if len(input_shape) == 4 and weight_shape and len(weight_shape) == 4:
-                stride = _positive_pair(_contract_attribute(contract, parameters, "stride"), 1)
-                padding = _positive_pair(_contract_attribute(contract, parameters, "padding"), 0)
-                dilation = _positive_pair(_contract_attribute(contract, parameters, "dilation"), 1)
+                stride, valid_stride = _validate_conv_pair(_contract_attribute(contract, parameters, "stride"), 1, allow_zero=False)
+                padding, valid_padding = _validate_conv_pair(_contract_attribute(contract, parameters, "padding"), 0, allow_zero=True)
+                dilation, valid_dilation = _validate_conv_pair(_contract_attribute(contract, parameters, "dilation"), 1, allow_zero=False)
                 groups = _contract_attribute(contract, parameters, "groups")
                 groups = int(groups) if isinstance(groups, int) else 1
                 valid_groups = groups > 0 and input_shape[1] % groups == 0 and weight_shape[0] % groups == 0 and weight_shape[1] * groups == input_shape[1]
                 effective_kernel = [dilation[0] * (weight_shape[2] - 1) + 1, dilation[1] * (weight_shape[3] - 1) + 1]
-                valid_geometry = all(value > 0 for value in stride + dilation) and all(value >= 0 for value in padding) and effective_kernel[0] <= input_shape[2] + 2 * padding[0] and effective_kernel[1] <= input_shape[3] + 2 * padding[1]
+                valid_geometry = valid_stride and valid_padding and valid_dilation and effective_kernel[0] <= input_shape[2] + 2 * padding[0] and effective_kernel[1] <= input_shape[3] + 2 * padding[1]
                 resolved["groups"] = groups
                 resolved["valid_groups"] = valid_groups
                 resolved["effective_kernel"] = effective_kernel
