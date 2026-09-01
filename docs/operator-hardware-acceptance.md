@@ -29,7 +29,7 @@
 | gather 3D contract | `examples/cases/torch.gather-3d.generated.yaml` | generation/contract | rank/non-index extent predicate and invalid sample |
 | view contract | `examples/cases/torch.view.generated.yaml` | generation/contract | contiguous requirement and non-contiguous invalid sample |
 | matmul broadcast contract | `examples/cases/torch.matmul-broadcast.generated.yaml` | generation/contract | batched matmul batch broadcast and invalid sample |
-| fixed add aggregate evidence | `examples/cases/torch.add.fixed-hardware.yaml` | Torch CPU/GPU/NPU | exact fp32 inputs; NPU accuracy passed with auditable `/out` artifacts; CPU/GPU run and aggregate gate pending GPU image build |
+| fixed add aggregate evidence | `examples/cases/torch.add.fixed-hardware.yaml` | Torch CPU/GPU/NPU | exact fp32 inputs; CPU/GPU/NPU accuracy and aggregate gate passed with auditable `/out` artifacts and a shared case fingerprint |
 
 ## Required Gate Lanes
 
@@ -68,6 +68,6 @@ Torch bf16 CPU/GPU shared-fingerprint compare 已通过，输入 contract 为 bf
 
 ## Local Probe
 
-本地开发环境未安装 Torch/NPU runtime；真实 Torch/NPU lane 已在配置的 NPU 主机设备专用镜像中执行。当前已取得 reduce、sort、topk、index-select、gather、scatter、select、bmm、bf16、special-value、where、masked_fill、reshape 与 transpose 的 NPU device-tensor evidence。CPU NumPy broadcast case 已通过；CPU/GPU Torch mean、matmul、bmm、where、topk、index-select、reshape、transpose、masked_fill 与复杂算子合法 case 均已通过。CPU/GPU/NPU 聚合 gate 还需要实际 GPU/NPU archives，不能用生成层测试替代。
+本地开发环境未安装 Torch/NPU runtime；真实 Torch/NPU lane 已在配置的 NPU 主机设备专用镜像中执行。当前已取得 reduce、sort、topk、index-select、gather、scatter、select、bmm、bf16、special-value、where、masked_fill、reshape 与 transpose 的 NPU device-tensor evidence。CPU NumPy broadcast case 已通过；CPU/GPU Torch mean、matmul、bmm、where、topk、index-select、reshape、transpose、masked_fill 与复杂算子合法 case 均已通过。fixed `torch.add` case 的 CPU/GPU/NPU 聚合 gate 已通过；其他 case 的聚合仍需要实际 GPU/NPU archives，不能用生成层测试替代。
 
 Gate 依赖和设备可见性是两个独立前置条件；两者均满足后，才可把 gate 结果记为真实硬件 evidence。
