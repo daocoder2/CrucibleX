@@ -15,6 +15,9 @@
 | bmm | `examples/cases/torch.bmm.npu.yaml` | Torch/NPU | batch matmul device-tensor evidence |
 | gather | `examples/cases/torch.gather.npu.yaml` | Torch/NPU | int64 index device-tensor evidence |
 | scatter | `examples/cases/torch.scatter.npu.yaml` | Torch/NPU | int64 index and src device-tensor evidence |
+| select | `examples/cases/torch.select.npu.yaml` | Torch/NPU | selected-dimension device-tensor evidence |
+| bf16 | `examples/cases/torch.bf16.npu.yaml` | Torch/NPU | bfloat16 RNE input contract and device-tensor evidence |
+| special values | `examples/cases/torch.special-values.npu.yaml` | Torch/NPU | Inf/-Inf/subnormal device-tensor evidence |
 
 ## Required Gate Lanes
 
@@ -22,7 +25,7 @@
 
 - `CASE_REDUCE` 可使用 checked-in ACLNN mean 或 max-dim case。
 - `CASE_SORT` 可使用 checked-in ACLNN sort case；`torch.topk.npu.yaml` 已独立通过 NPU device-tensor 验收。
-- `CASE_INDEX` 可使用已通过 NPU 验收的 `torch.index_select.npu.yaml`；select/gather/scatter 仍需要各自的公开 case，不能由 index-select 外推。
+- `CASE_INDEX` 可使用已通过 NPU 验收的 `torch.index_select.npu.yaml`；gather、scatter、select 也已分别通过 Torch/NPU 验收。
 - `CASE_MATMUL` 可使用 checked-in Torch matmul case；`torch.bmm.npu.yaml` 已独立通过 NPU device-tensor 验收。
 
 ## Dtype And Layout Lanes
@@ -39,6 +42,6 @@
 
 ## Local Probe
 
-本次开发环境探测到公开可见的 NVIDIA GPU，但项目 `uv` 环境未安装 `torch` 或 `torch_npu`，因此未执行任何 Torch/ACLNN 实机 lane。这不是 operator failure：运行 gate 前必须在目标设备环境安装与 case/executor 匹配的 runtime，并使用对应 Node document。
+本地开发环境未安装 Torch/NPU runtime；真实 Torch/NPU lane 已在配置的 NPU 主机设备专用镜像中执行。当前已取得 reduce、sort、topk、index-select、gather、scatter、select、bmm、bf16 与 special-value 的 NPU device-tensor evidence。
 
 Gate 依赖和设备可见性是两个独立前置条件；两者均满足后，才可把 gate 结果记为真实硬件 evidence。
