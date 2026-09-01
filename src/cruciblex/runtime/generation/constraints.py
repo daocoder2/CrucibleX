@@ -496,11 +496,30 @@ class OperatorContractConstraint(ConstraintPlugin):
             resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "reshape" and input_shape is not None:
             target = _contract_attribute(contract, parameters, "shape")
-            if (
+            shape_valid = (
                 isinstance(target, (list, tuple))
                 and all(isinstance(value, int) and value >= 0 for value in target)
                 and _num_elements(input_shape) == _num_elements(list(target))
-            ):
+            )
+            if contract.get("contiguous_required"):
+                shape_policy = input_parameter.metadata.get("shape_policy", {}) if input_parameter else {}
+                declared_non_contiguous = isinstance(shape_policy, dict) and bool(
+                    shape_policy.get("non_contiguous")
+                    or shape_policy.get("strides")
+                    or shape_policy.get("storage_offset")
+                    or shape_policy.get("slice")
+                )
+                resolved["view_requires_contiguous"] = True
+                resolved["input_contiguous"] = not declared_non_contiguous
+                resolved["valid_view"] = bool(shape_valid and not declared_non_contiguous)
+                if declared_non_contiguous:
+                    resolved["view_failure_reason"] = "input_not_contiguous"
+                elif not shape_valid:
+                    resolved["view_failure_reason"] = "reshape_numel_mismatch"
+                if resolved["valid_view"]:
+                    resolved["output_shape"] = list(target)
+                    resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
+            elif shape_valid:
                 resolved["output_shape"] = list(target)
                 resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
         elif family == "transpose" and input_shape is not None:

@@ -584,6 +584,27 @@ def test_attention_dimension_aliases_and_norm_attribute_invalid_generation():
     assert invalid.parameters[1].values == [5]
 
 
+def test_view_contract_distinguishes_contiguous_and_non_contiguous_inputs():
+    contiguous = CaseSpec(
+        id=780,
+        operator=OperatorSpec(name="torch.view"),
+        invocation=InvocationSpec(api="torch.view", api_type="function"),
+        parameters=[_parameter("input", [2, 3]), ParameterSpec(name="shape", kind=ParameterKind.ATTRIBUTE_TUPLE, dtypes=["int64"], values=[3, 2])],
+    )
+    non_contiguous = contiguous.model_copy(update={"id": 781, "parameters": [contiguous.parameters[0].model_copy(update={"metadata": {"shape_policy": {"non_contiguous": True}}}), contiguous.parameters[1]]})
+
+    legal = expand_cases([contiguous])[0].metadata["resolved_operator_contract"]
+    invalid = expand_cases([non_contiguous])[0].metadata["resolved_operator_contract"]
+
+    assert legal["valid_view"] is True
+    assert legal["input_contiguous"] is True
+    assert legal["output_shape"] == [3, 2]
+    assert invalid["valid_view"] is False
+    assert invalid["input_contiguous"] is False
+    assert invalid["view_failure_reason"] == "input_not_contiguous"
+    assert "output_shape" not in invalid
+
+
 def test_invalid_conv_contract_does_not_emit_output_shape():
     case = CaseSpec(id=778, operator=OperatorSpec(name="torch.conv2d"), invocation=InvocationSpec(api="torch.conv2d", api_type="function"), generation=GenerationSpec(), parameters=[_parameter("input", [1, 3, 5, 5]), _parameter("weight", [4, 2, 3, 3]), ParameterSpec(name="groups", kind=ParameterKind.ATTRIBUTE, values=2)])
     contract = expand_cases([case])[0].metadata["resolved_operator_contract"]
