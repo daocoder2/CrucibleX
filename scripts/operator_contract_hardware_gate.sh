@@ -10,6 +10,10 @@ CASE_REDUCE="${CASE_REDUCE:?set CASE_REDUCE to a reduce Case path}"
 CASE_SORT="${CASE_SORT:?set CASE_SORT to a sort/topk Case path}"
 CASE_INDEX="${CASE_INDEX:?set CASE_INDEX to an index/select/gather/scatter Case path}"
 CASE_MATMUL="${CASE_MATMUL:?set CASE_MATMUL to a matmul/bmm Case path}"
+# Optional facts lanes use the same evidence contract when a supported case is supplied.
+CASE_MASK="${CASE_MASK:-}"
+CASE_RESHAPE="${CASE_RESHAPE:-}"
+CASE_TRANSPOSE="${CASE_TRANSPOSE:-}"
 
 run_lane() {
   local name="$1"
@@ -31,11 +35,12 @@ records = [json.loads(line) for line in open(sys.argv[2], encoding="utf-8") if l
 if not records:
     raise SystemExit("missing result records")
 metrics = records[-1].get("metrics", {})
-for key in ("input_dtype_contracts", "backend_dtype_source"): 
-    if not metrics.get(key):
-        raise SystemExit(f"missing {key}")
+if not metrics.get("input_dtype_contracts"):
+    raise SystemExit("missing input_dtype_contracts")
+if metrics.get("backend_dtype_source") != "device_tensor":
+    raise SystemExit("missing device_tensor dtype evidence")
 evidence = records[-1].get("evidence", {})
-if not evidence.get("kind"):
+if not (evidence.get("kind") or metrics.get("npu_evidence") or metrics.get("gpu_evidence")):
     raise SystemExit("missing hardware evidence")
 PY
 }
@@ -44,5 +49,8 @@ run_lane reduce "${CASE_REDUCE}"
 run_lane sort "${CASE_SORT}"
 run_lane index "${CASE_INDEX}"
 run_lane matmul "${CASE_MATMUL}"
+[[ -z "${CASE_MASK}" ]] || run_lane mask "${CASE_MASK}"
+[[ -z "${CASE_RESHAPE}" ]] || run_lane reshape "${CASE_RESHAPE}"
+[[ -z "${CASE_TRANSPOSE}" ]] || run_lane transpose "${CASE_TRANSPOSE}"
 
 echo "[operator-contract-hardware] passed: ${OUTPUT_ROOT}"

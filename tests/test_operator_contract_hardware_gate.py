@@ -35,6 +35,9 @@ def test_operator_contract_hardware_gate_requires_dtype_and_hardware_evidence(tm
             "CASE_SORT": "sort.yaml",
             "CASE_INDEX": "index.yaml",
             "CASE_MATMUL": "matmul.yaml",
+            "CASE_MASK": "where.yaml",
+            "CASE_RESHAPE": "reshape.yaml",
+            "CASE_TRANSPOSE": "transpose.yaml",
             "OUTPUT_ROOT": str(tmp_path / "output" / str(include_evidence)),
         }
         result = subprocess.run(["bash", str(GATE)], env=env, capture_output=True, text=True, check=False)

@@ -25,7 +25,7 @@
 
 ## Required Gate Lanes
 
-使用 `scripts/operator_contract_hardware_gate.sh` 时，调用方显式提供 `CASE_REDUCE`、`CASE_SORT`、`CASE_INDEX` 与 `CASE_MATMUL`。gate 对每条 lane 执行 accuracy，检查 summary、input dtype contract、device dtype evidence 与 hardware evidence。
+使用 `scripts/operator_contract_hardware_gate.sh` 时，调用方显式提供 `CASE_REDUCE`、`CASE_SORT`、`CASE_INDEX` 与 `CASE_MATMUL`。可选的 `CASE_MASK`、`CASE_RESHAPE`、`CASE_TRANSPOSE` 使用相同检查。gate 对每条 lane 执行 accuracy，要求 `backend_dtype_source=device_tensor`，并接受结果顶层 evidence 或 NPU/GPU metrics evidence。
 
 - `CASE_REDUCE` 可使用 checked-in ACLNN mean 或 max-dim case。
 - `CASE_SORT` 可使用 checked-in ACLNN sort case；`torch.topk.npu.yaml` 已独立通过 NPU device-tensor 验收。
