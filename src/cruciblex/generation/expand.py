@@ -190,6 +190,9 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
         if causal_name in parameters and mask_name in parameters:
             mutations.append((causal_name, True, "causal_mask_conflict"))
     if family == "reshape":
+        input_parameter = parameters.get(str(contract.get("input", "input")))
+        if contract.get("contiguous_required") and input_parameter is not None:
+            mutations.append((str(contract.get("input", "input")), {"shape_policy": {"non_contiguous": True}}, "input_not_contiguous"))
         target_name = str(contract.get("shape", "shape"))
         target = parameters.get(target_name)
         if target and isinstance(target.values, (list, tuple)) and target.values:
@@ -210,7 +213,10 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
             parameter = parameter.model_copy(update={"values": value, "metadata": metadata})
         else:
             metadata["selected_invalid_value"] = value
-            if isinstance(value, list) and all(isinstance(dimension, int) and dimension >= 0 for dimension in value):
+            if isinstance(value, dict) and "shape_policy" in value:
+                metadata["shape_policy"] = {**parameter.metadata.get("shape_policy", {}), **value["shape_policy"]}
+                parameter = parameter.model_copy(update={"metadata": metadata})
+            elif isinstance(value, list) and all(isinstance(dimension, int) and dimension >= 0 for dimension in value):
                 parameter = parameter.model_copy(update={"shape": ShapeSpec(dims=value), "values": None, "metadata": metadata})
             else:
                 parameter = parameter.model_copy(update={"metadata": metadata})

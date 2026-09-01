@@ -84,6 +84,13 @@ def test_advanced_generated_examples_load_and_expand(path):
     assert len(cases) == 2
     assert cases[0].metadata["resolved_operator_contract"]
     assert cases[1].metadata["expected_invalid"] is True
+    if path.endswith("torch.view.generated.yaml"):
+        contract = cases[0].metadata["resolved_operator_contract"]
+        invalid_contract = cases[1].metadata["resolved_operator_contract"]
+        assert contract["valid_view"] is True
+        assert invalid_contract["valid_view"] is False
+        assert invalid_contract["view_failure_reason"] == "input_not_contiguous"
+        assert "output_shape" not in invalid_contract
 
 
 def test_reduction_example_declares_typed_keyword_binding():
