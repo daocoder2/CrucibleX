@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from cruciblex.domain.case import CaseSpec
+from cruciblex.domain.case import CaseSpec, ShapeSpec
 from cruciblex.runtime.generation.constraints import (
     CONSTRAINT_REGISTRY,
     GenerationContext,
@@ -42,6 +42,7 @@ def _apply_constraints(case: CaseSpec, index: int, count: int, invalid: bool, in
         generated = _mark_invalid_case(generated, invalid_index or 0)
         generated = _apply_invalid_values(generated, invalid_index or 0)
         generated = _apply_contract_invalid_value(generated, invalid_index or 0)
+        generated = _refresh_invalid_contract(generated, context)
     return generated
 
 
@@ -193,11 +194,31 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
             parameter = parameter.model_copy(update={"values": value, "metadata": metadata})
         else:
             metadata["selected_invalid_value"] = value
-            parameter = parameter.model_copy(update={"metadata": metadata})
+            if isinstance(value, list) and all(isinstance(dimension, int) and dimension >= 0 for dimension in value):
+                parameter = parameter.model_copy(update={"shape": ShapeSpec(dims=value), "values": None, "metadata": metadata})
+            else:
+                parameter = parameter.model_copy(update={"metadata": metadata})
         updated.append(parameter)
     metadata = dict(case.metadata)
     metadata["contract_invalid_reason"] = reason
     return case.model_copy(update={"parameters": updated, "metadata": metadata})
+
+
+def _refresh_invalid_contract(case: CaseSpec, context: GenerationContext) -> CaseSpec:
+    contract = case.metadata.get("resolved_operator_contract")
+    if not isinstance(contract, dict):
+        return case
+    # Do not retain output evidence derived from the legal case after a mutation.
+    stale_fields = {
+        "output_shape", "output_dtype", "values_dtype", "indices_dtype", "broadcast_shape",
+        "valid_attention", "qk_embedding_compatible", "kv_sequence_compatible",
+        "batch_compatible", "head_compatible", "mask_shape", "mask_broadcast_compatible",
+        "valid_groups", "effective_kernel", "valid_geometry",
+    }
+    metadata = dict(case.metadata)
+    metadata["resolved_operator_contract"] = {key: value for key, value in contract.items() if key not in stale_fields}
+    refreshed = case.model_copy(update={"metadata": metadata})
+    return CONSTRAINT_REGISTRY.resolve("operator_contract").after_case(refreshed, context)
 
 
 def _constraint_names(case: CaseSpec) -> list[str]:

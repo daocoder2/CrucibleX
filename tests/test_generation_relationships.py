@@ -614,3 +614,8 @@ def test_complex_contract_invalid_variants_cover_conv_norm_attention():
     assert generated[3].parameters[1].metadata["selected_invalid_value"] == [5]
     assert generated[5].metadata["contract_invalid_reason"] == "attention_head_mismatch"
     assert generated[5].parameters[1].metadata["selected_invalid_value"] == [1, 3, 5, 4]
+    assert generated[5].parameters[1].shape.dims == [1, 3, 5, 4]
+    contract = generated[5].metadata["resolved_operator_contract"]
+    assert contract["head_compatible"] is False
+    assert contract["valid_attention"] is False
+    assert "output_shape" not in contract
