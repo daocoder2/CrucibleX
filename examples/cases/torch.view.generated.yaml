@@ -1,0 +1,16 @@
+# Declarative view contract sample. Non-contiguous input is an expected invalid case.
+cases:
+  - id: 306
+    operator: {name: torch.view}
+    invocation: {api: torch.view, api_type: function, executor: torch}
+    generator: default
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape: {dims: [2, 3]}
+        metadata:
+          shape_policy: {non_contiguous: true}
+      - {name: shape, kind: attribute_tuple, dtypes: [int64], values: [3, 2]}
+    generation: {invalid_count: 1}
+    oracle: {comparison: allclose, reference_executor: torch}
