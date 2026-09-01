@@ -176,8 +176,9 @@ class ShapeRelationshipsConstraint(ConstraintPlugin):
                 key = parameters.get(str(relation.get("key", "key")))
                 key_dims = _shape_dims(key.shape if key else None)
                 resolved = [source_dims[0], source_dims[1], source_dims[2], key_dims[2]] if key_dims and len(source_dims) == 4 and len(key_dims) == 4 else target_dims
-            elif kind == "last_dimension_as" and source_dims and parameter.kind in {ParameterKind.ATTRIBUTE, ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE}:
-                resolved = [source_dims[-1]]
+            elif kind in {"last_dimension_as", "last_k_dimensions_as"} and source_dims and parameter.kind in {ParameterKind.TENSOR, ParameterKind.ATTRIBUTE, ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE}:
+                width = int(relation.get("k", 1)) if kind == "last_k_dimensions_as" else 1
+                resolved = source_dims[-max(1, width):]
             elif kind == "conv_weight_channels" and source_dims and target_dims:
                 groups = parameters.get(str(relation.get("groups", "groups")))
                 group_value = groups.values if groups else 1
@@ -526,7 +527,9 @@ class OperatorContractConstraint(ConstraintPlugin):
         elif family == "norm" and input_shape is not None:
             resolved["output_shape"] = list(input_shape)
             resolved["output_dtype"] = _contract_dtype(contract, input_parameter)
-            resolved["normalized_shape"] = input_shape[-1:]
+            normalized = parameters.get(str(contract.get("normalized_shape", "normalized_shape")))
+            normalized_values = normalized.values if normalized else None
+            resolved["normalized_shape"] = list(normalized_values) if isinstance(normalized_values, (list, tuple)) else input_shape[-1:]
         elif family == "attention" and input_shape is not None:
             key_parameter = parameters.get(str(contract.get("key", "key")))
             value_parameter = parameters.get(str(contract.get("value", "value")))

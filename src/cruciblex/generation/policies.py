@@ -155,7 +155,7 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         "contract": {"family": "norm", "input": "input", "normalized_shape": "normalized_shape", "weight": "weight", "bias": "bias", "eps": "eps", "runtime_supported": False},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [2, 4]}},
-            "normalized_shape": {"dtype_policy": {"library": "integer"}, "shape_relationship": {"kind": "last_dimension_as", "source": "input"}},
+            "normalized_shape": {"dtype_policy": {"library": "integer"}, "shape_relationship": {"kind": "last_k_dimensions_as", "source": "input", "k": 1}},
             "weight": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_shape_as", "source": "normalized_shape"}},
             "bias": {"dtype_policy": {"library": "floating"}, "shape_relationship": {"kind": "same_shape_as", "source": "weight"}},
         },
