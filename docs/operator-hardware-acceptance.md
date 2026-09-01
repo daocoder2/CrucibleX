@@ -60,6 +60,6 @@
 
 ## Local Probe
 
-本地开发环境未安装 Torch/NPU runtime；真实 Torch/NPU lane 已在配置的 NPU 主机设备专用镜像中执行。当前已取得 reduce、sort、topk、index-select、gather、scatter、select、bmm、bf16 与 special-value 的 NPU device-tensor evidence。
+本地开发环境未安装 Torch/NPU runtime；真实 Torch/NPU lane 已在配置的 NPU 主机设备专用镜像中执行。当前已取得 reduce、sort、topk、index-select、gather、scatter、select、bmm、bf16、special-value、where、masked_fill、reshape 与 transpose 的 NPU device-tensor evidence。CPU NumPy broadcast case 已通过；CPU Torch lane 因缺少 torch 被跳过。CPU/GPU/NPU 聚合 gate 还需要实际 GPU/NPU archives，不能用生成层测试替代。
 
 Gate 依赖和设备可见性是两个独立前置条件；两者均满足后，才可把 gate 结果记为真实硬件 evidence。
