@@ -40,7 +40,7 @@
 
 目前不应将 ACLNN layout/stride lane 标为端到端通过：bridge 会连续化输入且 descriptor 固定 ND/storage offset 0。ACLNN dynamic output 也尚未支持，因为 output descriptor 在 workspace 查询前必须静态创建。workspace 本身由 runtime 管理，不是 Case 参数。
 
-因此 bf16、special value、Torch layout/stride 可以由实际 device tensor case 进入 gate；ACLNN non-contiguous layout/stride 和 dynamic output 仍为 runtime capability blocker。
+Torch bf16 CPU/GPU shared-fingerprint compare 已通过，输入 contract 为 bf16 RNE 且 GPU dtype source 为 device tensor。special value、Torch layout/stride 可以由实际 device tensor case 进入 gate；ACLNN non-contiguous layout/stride 和 dynamic output 仍为 runtime capability blocker。
 
 ## Family Coverage Matrix
 
@@ -48,13 +48,13 @@
 | --- | --- | --- | --- | --- | --- |
 | reduce | dim/keepdim/dtype and reduction shape | output shape/dtype | dim out of range | `aclnn.mean.npu.yaml`, `torch.mean.hardware.yaml` | reduce CPU/GPU shared-fingerprint compare passed; ACLNN/NPU evidence recorded |
 | topk/sort | dim/k/largest/sorted | values and int64 indices shape/dtype | dim out of range, k exceeds axis | `torch.topk.npu.yaml`, `aclnn.sort.npu.yaml`, `torch.sort.hardware.yaml` | topk and sort CPU/GPU shared-fingerprint compares passed; Torch/NPU and ACLNN/NPU evidence recorded |
-| index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | index-select, gather, scatter and where CPU/GPU shared-fingerprint compares passed; Torch/NPU index/mask evidence recorded |
+| index/mask | int64 index, broadcast mask, index range | selected/gather/scatter/where output shape | index out of range, broadcast mismatch | `torch.gather.npu.yaml`, `torch.where.npu.yaml` | index-select, gather, scatter, select and where CPU/GPU shared-fingerprint compares passed; Torch/NPU index/mask evidence recorded |
 | reshape/layout | numel preservation, tuple shape, transpose rank | output shape/dtype and layout policy | numel mismatch, invalid dimensions | `torch.reshape.npu.yaml`, `torch.transpose.npu.yaml` | reshape/transpose CPU/GPU shared-fingerprint compares passed; Torch/NPU passed; ACLNN layout/stride remains blocked by bridge semantics |
 | matmul/bmm | inner dimension and batch compatibility | batch/output shape and dtype | inner/batch mismatch | `torch.bmm.npu.yaml` | bmm CPU/GPU shared-fingerprint compare passed; Torch/NPU evidence recorded; matmul CPU/GPU also passed |
 | conv/norm/attention | channel aliases, normalized shape, QKV batch/head/embed aliases | formula-derived output shape/dtype | channel, normalized-shape, head mismatch | `torch.conv2d.generated.yaml`, `torch.layer-norm.generated.yaml`, `torch.attention.generated.yaml` | legal conv2d/layer_norm/attention CPU/GPU shared-fingerprint compares passed; invalid variants remain negative validation; runtime support explicitly capability-gated |
 | ACLNN signature | native scalar/array ABI, output dtype/shape, lifecycle | parsed signature and output descriptors | unsupported ABI kind/shape | `aclnn.mean.npu.yaml` | ACLNN mean/max-dim/sort NPU evidence; optional/list ABI blockers documented |
 
-复杂算子的 generated 示例会同时产生合法 case、`expected_invalid` case、解析后的 `resolved_operator_contract` 与输出 shape。当前真实执行矩阵：CPU NumPy broadcast 已通过；CPU/GPU Torch mean、matmul、bmm、where、topk、index-select、reshape、transpose、masked_fill，以及 conv2d、layer_norm、scaled-dot-product-attention 的合法 case 已在同一容器、同一 case fingerprint 下通过；NPU Torch/ACLNN 多条 lane 已通过。CPU/GPU/NPU 三侧聚合仍由 `scripts/cpu_gpu_npu_accuracy_gate.sh` 汇总；ACLNN 作为 NPU-side executor 单独记录，不能替代 CPU/GPU evidence。
+复杂算子的 generated 示例会同时产生合法 case、`expected_invalid` case、解析后的 `resolved_operator_contract` 与输出 shape。当前真实执行矩阵：CPU NumPy broadcast 已通过；CPU/GPU Torch mean、matmul、bmm、where、topk、index-select、gather、scatter、select、reshape、transpose、masked_fill、bf16，以及 conv2d、layer_norm、scaled-dot-product-attention 的合法 case 已在同一容器、同一 case fingerprint 下通过；NPU Torch/ACLNN 多条 lane 已通过。CPU/GPU/NPU 三侧聚合仍由 `scripts/cpu_gpu_npu_accuracy_gate.sh` 汇总；ACLNN 作为 NPU-side executor 单独记录，不能替代 CPU/GPU evidence。
 
 ## Evidence Rule
 
