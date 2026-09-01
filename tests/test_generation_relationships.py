@@ -656,6 +656,16 @@ def test_gather_scatter_contract_validates_complex_index_and_src_shapes():
     assert scatter_bad["index_failure_reason"] == "scatter_src_shape_mismatch"
     assert "output_shape" not in scatter_bad
 
+    exact_bad = case(792, "gather", [2, 2, 4]).model_copy(update={"parameters": [
+        parameter("input", [2, 3, 4]),
+        ParameterSpec(name="dim", kind=ParameterKind.ATTRIBUTE, dtypes=["int64"], values=1),
+        parameter("index", [2, 2, 4], "int64").model_copy(update={"values": [0, 3]}),
+    ]})
+    exact_contract = expand_cases([exact_bad])[0].metadata["resolved_operator_contract"]
+    assert exact_contract["index_values_in_range"] is False
+    assert exact_contract["index_failure_reason"] == "index_value_out_of_range"
+    assert "output_shape" not in exact_contract
+
 
 def test_matmul_contract_distinguishes_broadcast_and_bmm_batch_rules():
     def case(case_id: int, left: list[int], right: list[int], batch_mode: str = "broadcast") -> CaseSpec:

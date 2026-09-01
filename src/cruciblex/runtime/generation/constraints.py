@@ -494,6 +494,8 @@ class OperatorContractConstraint(ConstraintPlugin):
             resolved["valid_index_dtype"] = index_dtype_valid
             if valid_dim:
                 resolved["index_range"] = [0, input_shape[normalized_dim] - 1]
+            index_values_valid = _index_values_in_range(index_parameter.values if index_parameter else None, resolved.get("index_range"))
+            resolved["index_values_in_range"] = index_values_valid
             if mode in {"gather", "scatter"}:
                 valid_index_shape, index_failure = _validate_index_shape(input_shape, index_shape, normalized_dim, valid_dim)
                 resolved["valid_index_shape"] = valid_index_shape
@@ -504,11 +506,13 @@ class OperatorContractConstraint(ConstraintPlugin):
                     valid_src_shape = _validate_scatter_src_shape(index_shape, src_shape)
                     resolved["src_shape"] = src_shape
                     resolved["valid_src_shape"] = valid_src_shape
-                resolved["valid_index_contract"] = valid_dim and index_dtype_valid and valid_index_shape and valid_src_shape
+                resolved["valid_index_contract"] = valid_dim and index_dtype_valid and index_values_valid and valid_index_shape and valid_src_shape
                 if not valid_dim:
                     resolved["index_failure_reason"] = "index_dim_out_of_range"
                 elif not index_dtype_valid:
                     resolved["index_failure_reason"] = "index_dtype_not_int64"
+                elif not index_values_valid:
+                    resolved["index_failure_reason"] = "index_value_out_of_range"
                 elif not valid_index_shape:
                     resolved["index_failure_reason"] = index_failure
                 elif not valid_src_shape:
@@ -770,6 +774,23 @@ def _resolve_reduction_dimensions(dim: object, rank: int) -> tuple[bool, list[in
 def _reduce_shape(shape: list[int], dimensions: list[int], keepdim: bool) -> list[int]:
     selected = set(dimensions)
     return [1 if index in selected and keepdim else value for index, value in enumerate(shape) if keepdim or index not in selected]
+
+
+def _index_values_in_range(values: object, index_range: object) -> bool:
+    if values is None or not isinstance(index_range, list) or len(index_range) != 2:
+        return True
+    lower, upper = index_range
+    flattened = _flatten_index_values(values)
+    return all(isinstance(value, int) and lower <= value <= upper for value in flattened)
+
+
+def _flatten_index_values(values: object) -> list[object]:
+    if isinstance(values, (list, tuple)):
+        flattened: list[object] = []
+        for value in values:
+            flattened.extend(_flatten_index_values(value))
+        return flattened
+    return [values]
 
 
 def _validate_index_shape(input_shape: list[int], index_shape: list[int] | None, dim: int, valid_dim: bool) -> tuple[bool, str]:
