@@ -1,0 +1,17 @@
+cases:
+  - id: 922
+    operator: {name: torch.instance_norm}
+    invocation: {api: torch.instance_norm, api_type: function, executor: torch, binding: {mode: keyword, names: [input, running_mean, running_var, weight, bias, use_input_stats, momentum, eps, cudnn_enabled]}}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    metadata: {tags: [hardware, instance_norm, running_stats, affine, legal]}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 4, 3, 3]}}
+      - {name: running_mean, kind: tensor, dtypes: [fp32], shape: {dims: [4]}}
+      - {name: running_var, kind: tensor, dtypes: [fp32], shape: {dims: [4]}}
+      - {name: weight, kind: tensor, dtypes: [fp32], shape: {dims: [4]}}
+      - {name: bias, kind: tensor, dtypes: [fp32], shape: {dims: [4]}}
+      - {name: use_input_stats, kind: attribute, dtypes: [bool], values: false}
+      - {name: momentum, kind: attribute, dtypes: [fp32], values: 0.1}
+      - {name: eps, kind: attribute, dtypes: [fp32], values: 1.0e-5}
+      - {name: cudnn_enabled, kind: attribute, dtypes: [bool], values: true}

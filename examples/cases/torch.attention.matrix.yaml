@@ -27,3 +27,14 @@ cases:
       - {name: key, kind: tensor, dtypes: [fp32], shape: {dims: [2, 4, 5, 8]}}
       - {name: value, kind: tensor, dtypes: [fp32], shape: {dims: [2, 4, 5, 6]}}
       - {name: attn_mask, kind: tensor, dtypes: [bool], shape: {dims: [7, 7, 7, 7]}}
+  - id: 933
+    operator: {name: torch.scaled_dot_product_attention}
+    invocation: {api: torch.nn.functional.scaled_dot_product_attention, api_type: function, executor: torch, binding: {mode: keyword, names: [query, key, value, attn_mask, dropout_p, is_causal]}}
+    metadata: {expected_invalid: true, expected_failure_reason: causal_attention_mask_conflict}
+    parameters:
+      - {name: query, kind: tensor, dtypes: [fp32], shape: {dims: [2, 4, 3, 8]}}
+      - {name: key, kind: tensor, dtypes: [fp32], shape: {dims: [2, 4, 5, 8]}}
+      - {name: value, kind: tensor, dtypes: [fp32], shape: {dims: [2, 4, 5, 6]}}
+      - {name: attn_mask, kind: tensor, dtypes: [bool], shape: {dims: [1, 1, 3, 5]}}
+      - {name: dropout_p, kind: attribute, dtypes: [fp32], values: 0.0}
+      - {name: is_causal, kind: attribute, dtypes: [bool], values: true}

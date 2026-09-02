@@ -1,6 +1,6 @@
 # Campaign Matrix 组合策略
 
-CrucibleX 使用 `campaign.matrix` 展开 operator、backend、task、dtype、shape 等运行维度。它替代传统 traversal 命令的静态组合部分，并保留普通 `runs` 与 matrix 扩展结果并存的能力。
+CrucibleX 使用 `campaign.matrix` 展开 operator、backend、task、dtype、shape 等运行维度。它替代传统 traversal 命令的静态组合部分，并保留普通 `runs` 与 matrix 扩展结果并存的能力。顶层编排方案见 [`manifest-design.md`](/workspaces/sunafar/operator/cruciblex/docs/manifest-design.md)。
 
 ## 完整展开
 

@@ -1,0 +1,44 @@
+version: 1
+kind: manifest
+task:
+  name: operator-boundary-campaign
+  description: reduce, order, index, layout, and matmul contract matrix
+lanes:
+  - name: cpu-contract
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: ../cases/torch.mean.hardware.yaml
+      - include: ../cases/torch.sort.hardware.yaml
+      - include: ../cases/torch.topk.generated.yaml
+      - include: ../cases/torch.gather-3d.generated.yaml
+      - include: ../cases/torch.view.generated.yaml
+      - include: ../cases/torch.matmul-broadcast.generated.yaml
+  - name: gpu-legal-evidence
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: ../cases/torch.mean.hardware.yaml
+      - include: ../cases/torch.sort.hardware.yaml
+      - include: ../cases/torch.matmul.hardware.yaml
+  - name: npu-legal-evidence
+    kind: hardware
+    backends: [npu]
+    cases:
+      - include: ../cases/torch.topk.npu.yaml
+      - include: ../cases/torch.gather.npu.yaml
+      - include: ../cases/torch.scatter.npu.yaml
+      - include: ../cases/torch.masked-fill.npu.yaml
+      - include: ../cases/torch.reshape.npu.yaml
+      - include: ../cases/torch.bmm.npu.yaml
+runtime:
+  allow_generated_cases: true
+  allow_invalid_cases: true
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+filters:
+  exclude_tags: [acl_runtime_blocker]
+reporting:
+  output_dir: .artifacts/operator-boundaries
+  emit_case_index: true
+  emit_lane_index: true

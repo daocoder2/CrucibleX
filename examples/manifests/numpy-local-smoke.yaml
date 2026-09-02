@@ -1,0 +1,16 @@
+version: 1
+kind: manifest
+task:
+  name: numpy-manifest-smoke
+lanes:
+  - name: cpu-smoke
+    kind: generated
+    backends: [cpu]
+    cases:
+      - include: ../cases/numpy.mean.yaml
+runtime:
+  allow_generated_cases: true
+  allow_invalid_cases: false
+reporting:
+  emit_case_index: true
+  emit_lane_index: true

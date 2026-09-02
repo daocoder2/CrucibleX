@@ -1,0 +1,10 @@
+cases:
+  - id: 209
+    operator: {name: torch.bmm}
+    invocation: {api: torch.bmm, api_type: function, executor: torch}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    metadata: {tags: [hardware, bmm, legal]}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2, 3]}, values: [[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], [[1.0, 0.0, 1.0], [0.0, 1.0, 0.0]]]}
+      - {name: mat2, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 2]}, values: [[[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]], [[2.0, 0.0], [0.0, 2.0], [1.0, 1.0]]]}

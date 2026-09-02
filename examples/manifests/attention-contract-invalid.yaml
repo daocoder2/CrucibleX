@@ -1,0 +1,18 @@
+version: 1
+kind: manifest
+task:
+  name: attention-contract-invalid
+  description: executable scaled dot product attention legal and semantic-invalid contract matrix
+lanes:
+  - name: cpu-attention-contract
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: ../cases/torch.attention.matrix.yaml
+runtime:
+  allow_generated_cases: false
+  allow_invalid_cases: true
+reporting:
+  output_dir: .artifacts/attention-contract-invalid
+  emit_case_index: true
+  emit_lane_index: true

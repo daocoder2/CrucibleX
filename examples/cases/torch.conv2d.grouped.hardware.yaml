@@ -1,0 +1,15 @@
+cases:
+  - id: 918
+    operator: {name: torch.conv2d}
+    invocation: {api: torch.conv2d, api_type: function, executor: torch, binding: {mode: keyword, names: [input, weight, bias, stride, padding, dilation, groups]}}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    metadata: {tags: [hardware, conv2d, grouped, legal]}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [1, 4, 9, 9]}}
+      - {name: weight, kind: tensor, dtypes: [fp32], shape: {dims: [8, 2, 3, 3]}}
+      - {name: bias, kind: tensor, dtypes: [fp32], shape: {dims: [8]}}
+      - {name: stride, kind: attribute_tuple, dtypes: [int64], values: [2, 2]}
+      - {name: padding, kind: attribute_tuple, dtypes: [int64], values: [2, 2]}
+      - {name: dilation, kind: attribute_tuple, dtypes: [int64], values: [2, 2]}
+      - {name: groups, kind: attribute, dtypes: [int64], values: 2}

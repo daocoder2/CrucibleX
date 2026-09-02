@@ -18,6 +18,15 @@ from cruciblex.domain.enums import (
     SchedulerKind,
     TaskKind,
 )
+from cruciblex.domain.manifest import (
+    Manifest,
+    ManifestCaseInclude,
+    ManifestFilters,
+    ManifestLane,
+    ManifestReporting,
+    ManifestRuntime,
+    ManifestTask,
+)
 from cruciblex.domain.node import DeviceSpec, NodeSpec
 from cruciblex.domain.plan import ArtifactPolicy, ExecutionPlan, JobSpec
 from cruciblex.domain.result import ArtifactPayload, ArtifactRef, ExecutionResult, HardwareEvidence
@@ -38,6 +47,13 @@ __all__ = [
     "InvocationBindingSpec",
     "InvocationSpec",
     "JobSpec",
+    "Manifest",
+    "ManifestCaseInclude",
+    "ManifestFilters",
+    "ManifestLane",
+    "ManifestReporting",
+    "ManifestRuntime",
+    "ManifestTask",
     "NodeSpec",
     "OperatorSpec",
     "OracleSpec",

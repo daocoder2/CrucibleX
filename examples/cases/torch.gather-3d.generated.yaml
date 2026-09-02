@@ -7,6 +7,6 @@ cases:
     parameters:
       - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 4]}}
       - {name: dim, kind: attribute, dtypes: [int64], values: 1}
-      - {name: index, kind: tensor, dtypes: [int64], shape: {dims: [2, 5, 4]}}
+      - {name: index, kind: tensor, dtypes: [int64], shape: {dims: [2, 5, 4]}, value_range: {valid: [0, 2]}}
     generation: {invalid_count: 1}
     oracle: {comparison: allclose, reference_executor: torch}

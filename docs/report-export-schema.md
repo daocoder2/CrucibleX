@@ -9,14 +9,15 @@ CrucibleX 同时保留原始执行结果与版本化报告投影：
 
 ## 核心字段域
 
-- 身份与来源：`run_id`、`plan_id`、`case_id`、`case_name`、`case_fingerprint`、`matrix_id`、fuzz generation 信息；
+- 身份与来源：`run_id`、`plan_id`、`case_id`、`case_name`、`case_fingerprint`、`matrix_id`、`manifest_lane`、`manifest_lane_kind`、`manifest_case_include`、fuzz generation 信息；
 - 执行：`task`、`status`、`node_name`、`backend`、`device_id`、`resolved_device`、`candidate_executor`；
+- 硬件证据：`hardware_probe_status`、`hardware_backend`、`hardware_device_id`、`hardware_fingerprint`、`hardware_runtime_json`；
 - 精度：`comparison`、最大/平均绝对误差、最大/平均相对误差、`rmse`、`matched_ratio`；
 - 性能与内存：`latency_ms`、`throughput_items_per_s`、`memory_peak_bytes`；
-- 失败与环境：`failure_kind`、`failure_stage`、`error`、硬件 probe/fingerprint；
-- 可扩展证据：`runtime_policy_json`、`metrics_json`、`evidence_json`。
+- 失败与环境：`failure_kind`、`failure_stage`、`error`、ACLNN capability/status/reason/decisions；
+- 可扩展证据：`runtime_policy_json`、`manifest_runtime_json`、`metrics_json`、`evidence_json`。
 
-复杂对象统一以 JSON 字符串放进 `*_json` 字段，因此 CSV 列顺序不受 backend、comparator 或 plugin 的动态 metrics 影响。JSONL 使用相同字段名和同一版本号。
+复杂对象统一以 JSON 字符串放进 `*_json` 字段，因此 CSV 列顺序不受 backend、comparator 或 plugin 的动态 metrics 影响。`aclnn_capability_decisions_json` 保留 spec 级完整 ABI 判定列表，单项 `aclnn_capability/status/reason` 仍指向首个阻塞判定，便于快速筛查与向后兼容读取。`hardware_runtime_json` 保留硬件 probe 原始运行时摘要，`hardware_backend` / `hardware_device_id` / `hardware_fingerprint` 则保留硬件身份投影。JSONL 使用相同字段名和同一版本号。manifest lane 字段来自 case metadata 投影，未通过 manifest 运行时为空字符串。
 
 每次 `cx run` 都会生成：
 

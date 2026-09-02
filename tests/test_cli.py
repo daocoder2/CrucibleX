@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import json
 import os
 import time
@@ -34,7 +35,14 @@ from cruciblex.domain import (
     TaskKind,
     ValueRange,
 )
-from cruciblex.generation.loader import load_case, load_job
+from cruciblex.domain.manifest import HARDWARE_EVIDENCE_ARCHIVE_FILES
+from cruciblex.generation.loader import (
+    load_case,
+    load_job,
+    load_job_from_manifest,
+    load_manifest,
+    validate_manifest_references,
+)
 from cruciblex.plugins import load_builtin_plugins, load_plugins
 from cruciblex.report import ReproBundleWriter
 from cruciblex.runtime.executors import ExecutionRequest
@@ -337,6 +345,307 @@ def test_run_writes_log_file(tmp_path):
     assert "Discovered nodes:" in result.stdout
 
 
+def test_run_accepts_manifest(tmp_path):
+    repo_root = Path(__file__).parents[1]
+    manifest_file = tmp_path / "operator-contract-suite.yaml"
+    manifest_file.write_text(
+        f"""
+version: 1
+kind: manifest
+task:
+  name: operator-contract-suite
+lanes:
+  - name: cpu-contract
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: {repo_root / "examples/cases/torch.abs.yaml"}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--manifest",
+            str(manifest_file),
+            "--nodes",
+            str(repo_root / "examples/nodes/local.yaml"),
+            "--scheduler",
+            "local",
+            "--output",
+            str(tmp_path / "run-output"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    manifest = json.loads((tmp_path / "run-output" / "manifest.json").read_text(encoding="utf-8"))
+    include_file = repo_root / "examples/cases/torch.abs.yaml"
+    assert manifest["case_path"] == str(manifest_file)
+    assert manifest["metadata"]["manifest"] == str(manifest_file)
+    assert manifest["metadata"]["manifest_sha256"] == hashlib.sha256(manifest_file.read_bytes()).hexdigest()
+    assert manifest["metadata"]["manifest_includes"] == [
+        {"path": str(include_file), "sha256": hashlib.sha256(include_file.read_bytes()).hexdigest()}
+    ]
+    assert manifest["metadata"]["manifest_summary"] == {
+        "selected_case_count": 1,
+        "plan_count": 1,
+        "plan_count_by_lane": {"cpu-contract": 1},
+        "plan_count_by_backend": {"cpu": 1},
+    }
+    report_row = json.loads((tmp_path / "run-output" / "report.jsonl").read_text(encoding="utf-8"))
+    assert report_row["manifest_lane"] == "cpu-contract"
+    assert report_row["manifest_lane_kind"] == "contract"
+    assert report_row["manifest_case_include"] == str(include_file)
+
+
+def test_aclnn_preflight_campaign_exports_capability_verdicts(tmp_path):
+    repo_root = Path(__file__).parents[1]
+    output = tmp_path / "aclnn-preflight"
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--manifest", str(repo_root / "examples/manifests/aclnn-preflight-contract.yaml"),
+            "--nodes", str(repo_root / "examples/nodes/local.yaml"),
+            "--scheduler", "local",
+            "--task", "accuracy",
+            "--output", str(output),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    rows = [json.loads(line) for line in (output / "report.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert {row["status"] for row in rows} == {"skipped"}
+    assert {(row["aclnn_capability"], row["aclnn_capability_status"]) for row in rows} == {
+        ("tensor_list", "future_abi"),
+        ("optional_tensor", "future_abi"),
+        ("optional_tensor_list", "future_abi"),
+        ("optional_scalar", "future_abi"),
+        ("dynamic_output", "preflight_blocked"),
+        ("non_nd_format", "preflight_blocked"),
+        ("non_contiguous_storage", "preflight_blocked"),
+    }
+    assert all(row["aclnn_capability_reason"] for row in rows)
+
+
+def test_manifest_schema_rejects_duplicate_lane_names(tmp_path):
+    manifest_file = tmp_path / "duplicate-lanes.yaml"
+    manifest_file.write_text(
+        """
+version: 1
+kind: manifest
+lanes:
+  - name: duplicate
+    cases:
+      - include: examples/cases/torch.abs.yaml
+  - name: duplicate
+    cases:
+      - include: examples/cases/torch.abs.yaml
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="manifest lane names must be unique"):
+        load_manifest(manifest_file)
+
+
+def test_run_manifest_reports_empty_plan_diagnostics(tmp_path):
+    repo_root = Path(__file__).parents[1]
+    manifest_file = tmp_path / "gpu-only.yaml"
+    manifest_file.write_text(
+        f"""
+version: 1
+kind: manifest
+lanes:
+  - name: gpu-only
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: {repo_root / "examples/cases/torch.abs.yaml"}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--manifest",
+            str(manifest_file),
+            "--nodes",
+            str(repo_root / "examples/nodes/local.yaml"),
+            "--scheduler",
+            "local",
+            "--output",
+            str(tmp_path / "run-output"),
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "manifest produced no execution plans" in result.output
+    assert "case_backends=['gpu']" in result.output
+    assert "node_backends=['cpu']" in result.output
+
+
+def test_manifest_validate_and_plan_commands(tmp_path):
+    repo_root = Path(__file__).parents[1]
+    manifest_file = tmp_path / "operator-contract-suite.yaml"
+    manifest_file.write_text(
+        f"""
+version: 1
+kind: manifest
+task:
+  name: operator-contract-suite
+lanes:
+  - name: cpu-contract
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: {repo_root / "examples/cases/torch.abs.yaml"}
+reporting:
+  emit_case_index: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    validate = runner.invoke(app, ["manifest", "validate", str(manifest_file)])
+    assert validate.exit_code == 0, validate.output
+    assert "Manifest valid:" in validate.stdout
+    assert "Task: operator-contract-suite" in validate.stdout
+    assert "Lanes: 1" in validate.stdout
+
+    plan = runner.invoke(
+        app,
+        [
+            "manifest",
+            "plan",
+            str(manifest_file),
+            "--nodes",
+            str(repo_root / "examples/nodes/local.yaml"),
+            "--output",
+            str(tmp_path / "plan-output"),
+        ],
+    )
+    assert plan.exit_code == 0, plan.output
+    assert "Manifest:" in plan.stdout
+    assert "Plans: 1" in plan.stdout
+    assert "cpu-contract" in plan.stdout
+    assert (tmp_path / "plan-output" / "manifest_case_index.json").exists()
+
+    plan_json = runner.invoke(
+        app,
+        [
+            "manifest",
+            "plan",
+            str(manifest_file),
+            "--nodes",
+            str(repo_root / "examples/nodes/local.yaml"),
+            "--output",
+            str(tmp_path / "plan-json-output"),
+            "--json",
+        ],
+    )
+    assert plan_json.exit_code == 0, plan_json.output
+    payload = json.loads(plan_json.stdout)
+    assert payload["manifest"] == str(manifest_file)
+    assert payload["task"] == "operator-contract-suite"
+    assert payload["cases"] == 1
+    assert payload["plans"] == 1
+    assert payload["items"][0]["lane"] == "cpu-contract"
+    assert payload["items"][0]["backend"] == "cpu"
+
+
+
+def test_operator_boundary_campaign_public_plan_contract():
+    repo_root = Path(__file__).parents[1]
+    manifest_file = repo_root / "examples/manifests/operator-boundary-campaign.yaml"
+    node_file = repo_root / "examples/nodes/local.yaml"
+    runner = CliRunner()
+
+    validate = runner.invoke(app, ["manifest", "validate", str(manifest_file)])
+    assert validate.exit_code == 0, validate.output
+    assert "Lanes: 3" in validate.stdout
+    assert "Selected cases: 15" in validate.stdout
+
+    plan = runner.invoke(app, ["manifest", "plan", str(manifest_file), "--nodes", str(node_file), "--json"])
+    assert plan.exit_code == 0, plan.output
+    payload = json.loads(plan.stdout)
+    expected_fields = ("manifest", "task", "cases", "plans", "items")
+    expected_item_fields = ("plan_id", "lane", "lane_kind", "case_id", "case_name", "backend", "node", "device_id", "task")
+    assert tuple(payload) == expected_fields
+    assert payload["cases"] == 20
+    assert payload["plans"] == 11
+    assert len(payload["items"]) == 11
+    assert all(tuple(item) == expected_item_fields for item in payload["items"])
+    assert {item["lane"] for item in payload["items"]} == {"cpu-contract"}
+    assert {item["lane_kind"] for item in payload["items"]} == {"contract"}
+
+
+def test_operator_boundary_campaign_cpu_execution_smoke(tmp_path):
+    repo_root = Path(__file__).parents[1]
+    output = tmp_path / "operator-boundary-smoke"
+    result = CliRunner().invoke(
+        app,
+        [
+            "run",
+            "--manifest", str(repo_root / "examples/manifests/operator-boundary-ci-smoke.yaml"),
+            "--nodes", str(repo_root / "examples/nodes/local.yaml"),
+            "--scheduler", "local",
+            "--task", "accuracy",
+            "--output", str(output),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    rows = [json.loads(line) for line in (output / "report.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 2
+    assert {row["status"] for row in rows} == {"passed"}
+    assert {row["manifest_lane"] for row in rows} == {"cpu-contract-smoke"}
+    assert {row["manifest_case_index"] for row in rows} == {0, 1}
+    assert (output / ".artifacts" / "operator-boundary-ci-smoke" / "manifest_case_index.json").exists()
+    assert (output / ".artifacts" / "operator-boundary-ci-smoke" / "manifest_lane_index.json").exists()
+    assert {path.name for path in output.iterdir() if path.is_file()} >= set(HARDWARE_EVIDENCE_ARCHIVE_FILES)
+
+
+def test_manifest_validate_json_freezes_canonical_v1_payload():
+    repo_root = Path(__file__).parents[1]
+    result = CliRunner().invoke(
+        app,
+        ["manifest", "validate", str(repo_root / "examples/manifests/operator-boundary-campaign.yaml"), "--json"],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert tuple(payload) == ("manifest", "task", "lanes", "cases", "lane_kinds")
+    assert payload["task"] == "operator-boundary-campaign"
+    assert payload["lanes"] == 3
+    assert payload["cases"] == 15
+    assert payload["lane_kinds"] == ["contract", "hardware", "hardware"]
+
+
+def test_manifest_validate_checks_included_case_references(tmp_path):
+    manifest_file = tmp_path / "broken.yaml"
+    manifest_file.write_text(
+        """version: 1
+kind: manifest
+lanes:
+  - name: broken
+    cases:
+      - include: missing-case.yaml
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FileNotFoundError):
+        validate_manifest_references(manifest_file)
+
+    result = CliRunner().invoke(app, ["manifest", "validate", str(manifest_file)])
+    assert result.exit_code != 0
+
+
 def test_device_actor_can_return_execution_log_payload(tmp_path):
     from cruciblex.runtime.actors.device import DeviceActor
 
@@ -372,6 +681,220 @@ def test_job_spec_defaults_to_ray_scheduler():
 def test_load_job_defaults_to_ray_scheduler():
     job = load_job("examples/cases/torch.abs.yaml", "examples/nodes/local.yaml")
     assert job.scheduler == SchedulerKind.RAY
+
+
+def test_load_job_from_manifest_applies_runtime_filters_and_reporting(tmp_path):
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    (cases_dir / "cases.yaml").write_text(
+        """
+cases:
+  - id: 11
+    operator:
+      name: custom.keep
+    invocation:
+      api: custom.keep
+      api_type: function
+      executor: function
+    generation:
+      count: 3
+      invalid_count: 2
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [1]
+    metadata:
+      tags: [keep]
+  - id: 22
+    operator:
+      name: custom.drop
+    invocation:
+      api: custom.drop
+      api_type: function
+      executor: function
+    generation:
+      count: 3
+      invalid_count: 2
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [1]
+    metadata:
+      tags: [drop]
+""".strip(),
+        encoding="utf-8",
+    )
+    node_file = tmp_path / "nodes.yaml"
+    write_cpu_nodes(node_file)
+    manifest_file = tmp_path / "manifest.yaml"
+    manifest_file.write_text(
+        """
+version: 1
+kind: manifest
+task:
+  name: filtered-suite
+lanes:
+  - name: filtered
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: cases/cases.yaml
+runtime:
+  allow_generated_cases: false
+  allow_invalid_cases: false
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+filters:
+  include_tags: [keep]
+  exclude_tags: [drop]
+reporting:
+  output_dir: manifest-index
+  emit_case_index: true
+  emit_lane_index: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+    output = tmp_path / "out"
+    job = load_job_from_manifest(manifest_file, node_file, scheduler=SchedulerKind.LOCAL, output_path=output)
+
+    assert [case.id for case in job.cases] == [11]
+    assert job.cases[0].generation.count == 1
+    assert job.cases[0].generation.invalid_count == 0
+    assert job.cases[0].metadata["manifest_runtime"] == {
+        "allow_generated_cases": False,
+        "allow_invalid_cases": False,
+        "require_real_evidence": True,
+        "require_backend_dtype_source": "device_tensor",
+    }
+    reporting_output = output / "manifest-index"
+    case_index = json.loads((reporting_output / "manifest_case_index.json").read_text(encoding="utf-8"))
+    lane_index = json.loads((reporting_output / "manifest_lane_index.json").read_text(encoding="utf-8"))
+    assert case_index["task_name"] == "filtered-suite"
+    assert case_index["selected_case_count"] == 1
+    assert case_index["expanded_case_count"] == 1
+    assert case_index["cases"][0]["lane"] == "filtered"
+    assert lane_index["lanes"][0]["case_count"] == 2
+
+
+def test_load_job_from_manifest_filters_lane_backends(tmp_path):
+    cases_dir = tmp_path / "cases"
+    cases_dir.mkdir()
+    (cases_dir / "cpu.yaml").write_text(
+        """
+cases:
+  - id: 101
+    operator:
+      name: custom.cpu
+    invocation:
+      api: custom.cpu
+      api_type: function
+      executor: function
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [1]
+""".strip(),
+        encoding="utf-8",
+    )
+    (cases_dir / "gpu.yaml").write_text(
+        """
+cases:
+  - id: 202
+    operator:
+      name: custom.gpu
+    invocation:
+      api: custom.gpu
+      api_type: function
+      executor: function
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [1]
+""".strip(),
+        encoding="utf-8",
+    )
+    (cases_dir / "inferred.yaml").write_text(
+        """
+cases:
+  - id: 303
+    operator:
+      name: custom.inferred
+    invocation:
+      api: custom.inferred
+      api_type: function
+      executor: function
+    parameters:
+      - name: input
+        kind: tensor
+        dtypes: [fp32]
+        shape:
+          dims: [1]
+""".strip(),
+        encoding="utf-8",
+    )
+    node_file = tmp_path / "nodes.yaml"
+    node_file.write_text(
+        """
+nodes:
+  - name: cpu
+    host: 127.0.0.1
+    devices:
+      - id: 0
+        backend: cpu
+  - name: gpu
+    host: 127.0.0.1
+    devices:
+      - id: 0
+        backend: gpu
+""".strip(),
+        encoding="utf-8",
+    )
+    manifest_dir = tmp_path / "manifests"
+    manifest_dir.mkdir()
+    manifest_file = manifest_dir / "operator-contract-suite.yaml"
+    manifest_file.write_text(
+        """
+version: 1
+kind: manifest
+task:
+  name: operator-contract-suite
+lanes:
+  - name: cpu-lane
+    kind: hardware
+    backends: [cpu]
+    cases:
+      - include: ../cases/cpu.yaml
+  - name: gpu-lane
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: ../cases/gpu.yaml
+  - name: inferred-lane
+    kind: contract
+    cases:
+      - include: ../cases/inferred.yaml
+""".strip(),
+        encoding="utf-8",
+    )
+
+    job = load_job_from_manifest(manifest_file, node_file, scheduler=SchedulerKind.LOCAL, output_path=tmp_path / "out")
+    plans = ExecutionPlanner().build(job)
+
+    assert {case.metadata["manifest_lane"] for case in job.cases} == {"cpu-lane", "gpu-lane", "inferred-lane"}
+    assert {plan.case.id: plan.device.backend for plan in plans if plan.case.id in {101, 202}} == {
+        101: BackendKind.CPU,
+        202: BackendKind.GPU,
+    }
+    assert [plan.device.backend for plan in plans if plan.case.id == 303] == [BackendKind.CPU, BackendKind.GPU]
 
 
 def test_load_job_normalizes_output_root(monkeypatch, tmp_path):

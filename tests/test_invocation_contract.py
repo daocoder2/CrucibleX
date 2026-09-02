@@ -72,6 +72,43 @@ def test_numpy_executor_applies_typed_keyword_binding():
     np.testing.assert_array_equal(output, np.asarray([3, 7]))
 
 
+def test_topk_generated_fixture_preserves_legal_and_invalid_contract_variants():
+    cases = expand_cases(load_cases("examples/cases/torch.topk.generated.yaml"))
+
+    assert len(cases) == 3
+    assert cases[0].metadata["resolved_operator_contract"]["output_shape"] == [2, 3]
+    assert [case.metadata["contract_invalid_reason"] for case in cases[1:]] == ["dim_out_of_range", "k_exceeds_axis"]
+    assert all(case.metadata["expected_invalid"] is True for case in cases[1:])
+
+
+@pytest.mark.parametrize(
+    ("path", "output_shape", "invalid_reason"),
+    [
+        ("examples/cases/torch.conv2d.generated.yaml", [1, 4, 5, 5], "conv_channel_mismatch"),
+        ("examples/cases/torch.group-norm.generated.yaml", [2, 6, 4, 4], "group_channel_mismatch"),
+        ("examples/cases/torch.instance-norm.generated.yaml", [2, 6, 4, 4], "norm_eps_not_positive"),
+        ("examples/cases/torch.layer-norm.generated.yaml", [2, 3, 4], "normalized_shape_mismatch"),
+        ("examples/cases/torch.attention.generated.yaml", [1, 2, 3, 4], "attention_head_mismatch"),
+    ],
+)
+def test_complex_operator_generated_contracts_preserve_legal_output_and_invalid_reason(path, output_shape, invalid_reason):
+    legal_case, invalid_case = expand_cases(load_cases(path))
+
+    assert legal_case.metadata["resolved_operator_contract"]["output_shape"] == output_shape
+    assert invalid_case.metadata["expected_invalid"] is True
+    assert invalid_case.metadata["contract_invalid_reason"] == invalid_reason
+    assert "output_shape" not in invalid_case.metadata["resolved_operator_contract"]
+
+
+def test_view_invalid_layout_policy_does_not_become_numeric_tensor_range():
+    invalid_case = expand_cases(load_cases("examples/cases/torch.view.generated.yaml"))[1]
+
+    inputs = DefaultInputGenerator().generate(GenerationRequest(case=invalid_case, plan=None))
+
+    assert inputs[0].size == 6
+    assert inputs[0].flags.c_contiguous is False
+
+
 @pytest.mark.parametrize("path", [
     "examples/cases/torch.group-norm.generated.yaml",
     "examples/cases/torch.instance-norm.generated.yaml",
@@ -111,6 +148,7 @@ def test_advanced_generated_examples_load_and_expand(path):
     ("examples/cases/torch.conv2d.generated.yaml", ["input", "weight", "bias", "stride", "padding", "dilation", "groups"]),
     ("examples/cases/torch.layer-norm.generated.yaml", ["input", "normalized_shape", "weight", "bias", "eps"]),
     ("examples/cases/torch.attention.generated.yaml", ["query", "key", "value", "attn_mask", "dropout_p", "is_causal"]),
+    ("examples/cases/torch.instance-norm.generated.yaml", ["input", "running_mean", "running_var", "weight", "bias", "use_input_stats", "momentum", "eps", "cudnn_enabled"]),
 ])
 def test_complex_operator_examples_bind_torch_parameters_by_name(path, names):
     case = expand_cases(load_cases(path))[0]

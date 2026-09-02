@@ -195,8 +195,13 @@ class DefaultInputGenerator(InputGenerator):
         policy = parameter.metadata.get("value_policy")
         if not isinstance(policy, dict) or policy.get("kind") != "matrix_profile":
             return None
-        if len(shape) != 2:
-            raise ValueError("matrix_profile requires a rank-2 tensor shape")
+        if len(shape) < 2:
+            raise ValueError("matrix_profile requires a rank-2-or-higher tensor shape")
+        if len(shape) > 2:
+            matrix_parameter = parameter.model_copy(update={"shape": ShapeSpec(dims=shape[-2:])})
+            matrix = self._matrix_profile(matrix_parameter, shape[-2:], dtype)
+            assert matrix is not None
+            return np.broadcast_to(matrix, shape).copy()
         if not np.issubdtype(dtype, np.floating):
             raise ValueError("matrix_profile requires a floating dtype")
         profile = str(policy.get("profile", "well_conditioned"))
@@ -368,7 +373,7 @@ class DefaultInputGenerator(InputGenerator):
             return float(selected_random[0]), float(selected_random[1])
         if isinstance(selected_random, tuple) and len(selected_random) >= 2:
             return float(selected_random[0]), float(selected_random[1])
-        if selected_random is not None and not isinstance(selected_random, (list, tuple)):
+        if isinstance(selected_random, (int, float)) and not isinstance(selected_random, bool):
             value = float(selected_random)
             return value, value
         selected_invalid = parameter.metadata.get("selected_invalid_value")
@@ -376,7 +381,7 @@ class DefaultInputGenerator(InputGenerator):
             return float(selected_invalid[0]), float(selected_invalid[1])
         if isinstance(selected_invalid, tuple) and len(selected_invalid) >= 2:
             return float(selected_invalid[0]), float(selected_invalid[1])
-        if selected_invalid is not None and not isinstance(selected_invalid, (list, tuple)):
+        if isinstance(selected_invalid, (int, float)) and not isinstance(selected_invalid, bool):
             value = float(selected_invalid)
             return value, value
         if parameter.value_range.valid:

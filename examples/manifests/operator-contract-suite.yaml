@@ -1,0 +1,53 @@
+version: 1
+kind: manifest
+task:
+  name: operator-contract-suite
+  description: 高级 operator contract 回归与证据收集入口
+  defaults:
+    oracle: torch
+    generator: default
+
+lanes:
+  - name: cpu-contract
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: ../cases/torch.mean.hardware.yaml
+      - include: ../cases/torch.matmul-broadcast.generated.yaml
+      - include: ../cases/torch.view.generated.yaml
+      - include: ../cases/torch.group-norm.generated.yaml
+      - include: ../cases/torch.instance-norm.generated.yaml
+      - include: ../cases/torch.gather-3d.generated.yaml
+
+  - name: gpu-evidence
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: ../cases/torch.relu.hardware.yaml
+      - include: ../cases/torch.matmul.hardware.yaml
+      - include: ../cases/torch.softmax.hardware.yaml
+      - include: ../cases/torch.sort.hardware.yaml
+
+  - name: npu-evidence
+    kind: hardware
+    backends: [npu]
+    cases:
+      - include: ../cases/aclnn.mean.npu.yaml
+      - include: ../cases/aclnn.sort.npu.yaml
+      - include: ../cases/torch.gather.npu.yaml
+      - include: ../cases/torch.scatter.npu.yaml
+      - include: ../cases/torch.bmm.npu.yaml
+
+runtime:
+  allow_generated_cases: true
+  allow_invalid_cases: true
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+
+filters:
+  exclude_tags: [acl_runtime_blocker]
+
+reporting:
+  output_dir: .artifacts/contracts
+  emit_case_index: true
+  emit_lane_index: true

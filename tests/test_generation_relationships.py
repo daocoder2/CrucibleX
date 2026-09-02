@@ -197,10 +197,13 @@ def test_matrix_profiles_are_deterministic_and_preserve_declared_structure():
     first = generator._generate_parameter(well_conditioned)
     second = generator._generate_parameter(well_conditioned)
     deficient = generator._generate_parameter(rank_deficient)
+    batched = generator._generate_parameter(well_conditioned.model_copy(update={"shape": ShapeSpec(dims=[2, 3, 6, 4])}))
 
     assert np.array_equal(first, second)
     assert np.linalg.cond(first) <= 3.01
     assert np.linalg.matrix_rank(deficient) <= 2
+    assert batched.shape == (2, 3, 6, 4)
+    assert all(np.linalg.cond(matrix) <= 3.01 for matrix in batched.reshape(-1, 6, 4))
 
 
 def test_matrix_profile_rejects_non_matrix_or_invalid_rank():
@@ -419,18 +422,21 @@ def test_index_select_facts_select_int64_index():
 def test_operator_contract_resolves_reduce_topk_index_and_matmul_evidence():
     reduce = CaseSpec(id=740, operator=OperatorSpec(name="torch.mean"), invocation=InvocationSpec(api="torch.mean", api_type="function"), parameters=[_parameter("input", [2, 3, 4]), _parameter("dim", [1]).model_copy(update={"values": 1}), _parameter("keepdim", [1]).model_copy(update={"values": True})])
     topk = CaseSpec(id=741, operator=OperatorSpec(name="torch.topk"), invocation=InvocationSpec(api="torch.topk", api_type="function"), parameters=[_parameter("input", [2, 5]), _parameter("k", [1]).model_copy(update={"values": 3}), _parameter("dim", [1]).model_copy(update={"values": 1})])
+    sort = CaseSpec(id=742, operator=OperatorSpec(name="torch.sort"), invocation=InvocationSpec(api="torch.sort", api_type="function"), parameters=[_parameter("input", [2, 5]), _parameter("dim", [1]).model_copy(update={"values": 1})])
     indexed = CaseSpec(id=742, operator=OperatorSpec(name="torch.index_select"), invocation=InvocationSpec(api="torch.index_select", api_type="function"), parameters=[_parameter("input", [2, 5]), _parameter("index", [2]), _parameter("dim", [1]).model_copy(update={"values": 1})])
     matmul = CaseSpec(id=743, operator=OperatorSpec(name="torch.matmul"), invocation=InvocationSpec(api="torch.matmul", api_type="function"), parameters=[_parameter("input", [2, 1, 3, 4]), _parameter("other", [1, 5, 4, 6])])
 
-    expanded = expand_cases([reduce, topk, indexed, matmul])
+    expanded = expand_cases([reduce, topk, sort, indexed, matmul])
 
     assert expanded[0].metadata["resolved_operator_contract"]["output_shape"] == [2, 1, 4]
     assert expanded[0].metadata["resolved_operator_contract"]["output_dtype"] == "fp32"
     assert expanded[1].metadata["resolved_operator_contract"]["output_shape"] == [2, 3]
     assert expanded[1].metadata["resolved_operator_contract"]["indices_dtype"] == "int64"
-    assert expanded[2].metadata["resolved_operator_contract"]["index_range"] == [0, 4]
-    assert expanded[3].metadata["resolved_operator_contract"]["batch_shape"] == [2, 5]
-    assert expanded[3].metadata["resolved_operator_contract"]["inner_dimension"] == 4
+    assert expanded[2].metadata["resolved_operator_contract"]["output_shape"] == [2, 5]
+    assert expanded[2].metadata["resolved_operator_contract"]["indices_dtype"] == "int64"
+    assert expanded[3].metadata["resolved_operator_contract"]["index_range"] == [0, 4]
+    assert expanded[4].metadata["resolved_operator_contract"]["batch_shape"] == [2, 5]
+    assert expanded[4].metadata["resolved_operator_contract"]["inner_dimension"] == 4
 
 
 def test_declarative_conv_norm_attention_and_aclnn_contracts_remain_capability_only():
@@ -558,9 +564,11 @@ def test_conv_norm_attention_facts_generate_legal_shapes_and_contracts():
 
 
 def test_layer_norm_multidimensional_suffix_is_generated_automatically():
-    case = CaseSpec(id=777, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), parameters=[_parameter("input", [2, 3, 4, 5]), ParameterSpec(name="normalized_shape", kind=ParameterKind.ATTRIBUTE_TUPLE, dtypes=["int64"], values=[9, 9], metadata={"shape_relationship": {"kind": "last_k_dimensions_as", "source": "input", "k": 2}})])
+    case = CaseSpec(id=777, operator=OperatorSpec(name="torch.layer_norm"), invocation=InvocationSpec(api="torch.layer_norm", api_type="function"), parameters=[_parameter("input", [2, 3, 4, 5]), ParameterSpec(name="normalized_shape", kind=ParameterKind.ATTRIBUTE_TUPLE, dtypes=["int64"], values=[9, 9], metadata={"shape_relationship": {"kind": "last_k_dimensions_as", "source": "input", "k": 2}}), _parameter("weight", [1]), _parameter("bias", [1])])
     generated = expand_cases([case])[0]
     assert generated.parameters[1].shape.dims == [4, 5]
+    assert generated.parameters[2].shape.dims == [4, 5]
+    assert generated.parameters[3].shape.dims == [4, 5]
 
 
 def test_conv_groups_and_attention_mask_are_generated_from_shape_contracts():

@@ -1,0 +1,14 @@
+cases:
+  - id: 923
+    operator: {name: torch.scaled_dot_product_attention}
+    invocation: {api: torch.nn.functional.scaled_dot_product_attention, api_type: function, executor: torch, binding: {mode: keyword, names: [query, key, value, dropout_p, is_causal, enable_gqa]}}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    metadata: {tags: [hardware, attention, gqa, capability_probe]}
+    parameters:
+      - {name: query, kind: tensor, dtypes: [fp32], shape: {dims: [1, 4, 3, 4]}}
+      - {name: key, kind: tensor, dtypes: [fp32], shape: {dims: [1, 2, 3, 4]}}
+      - {name: value, kind: tensor, dtypes: [fp32], shape: {dims: [1, 2, 3, 4]}}
+      - {name: dropout_p, kind: attribute, dtypes: [fp32], values: 0.0}
+      - {name: is_causal, kind: attribute, dtypes: [bool], values: false}
+      - {name: enable_gqa, kind: attribute, dtypes: [bool], values: true}

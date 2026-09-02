@@ -1,0 +1,114 @@
+cases:
+  - id: 810
+    operator: {name: aclnn.preflight.tensor_list}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: inputs, kind: tensor_list}]
+          outputs: [{name: output, kind: tensor, like: input}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]
+  - id: 811
+    operator: {name: aclnn.preflight.optional_tensor}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: input, kind: tensor}, {name: bias, kind: optional_tensor}]
+          outputs: [{name: output, kind: tensor, like: input}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]
+  - id: 812
+    operator: {name: aclnn.preflight.optional_scalar}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: input, kind: tensor}]
+          attributes: [{name: alpha, kind: optional_scalar}]
+          outputs: [{name: output, kind: tensor, like: input}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]
+  - id: 813
+    operator: {name: aclnn.preflight.dynamic_output}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: input, kind: tensor}]
+          outputs: [{name: output, kind: tensor, like: input, dynamic: true}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]
+  - id: 814
+    operator: {name: aclnn.preflight.non_nd}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: input, kind: tensor, format: FRACTAL_NZ}]
+          outputs: [{name: output, kind: tensor, like: input}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]
+  - id: 815
+    operator: {name: aclnn.preflight.strides}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: input, kind: tensor, strides: [2, 1]}]
+          outputs: [{name: output, kind: tensor, like: input}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]
+  - id: 816
+    operator: {name: aclnn.preflight.optional_tensor_list}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: inputs, kind: optional_tensor_list}]
+          outputs: [{name: output, kind: tensor, like: input}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]
+  - id: 817
+    operator: {name: aclnn.preflight.storage_offset}
+    invocation:
+      api: Abs
+      api_type: aclnn_function
+      executor: aclnn
+      metadata:
+        aclnn:
+          op_name: Abs
+          inputs: [{name: input, kind: tensor, storage_offset: 1}]
+          outputs: [{name: output, kind: tensor, like: input}]
+    oracle: {comparison: allclose}
+    generator: default
+    parameters: [{name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 2]}}]

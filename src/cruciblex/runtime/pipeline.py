@@ -150,7 +150,7 @@ class ExecutionPipeline:
                 _, memory_peak_bytes = tracemalloc.get_traced_memory()
         except (ExecutionNotSupportedError, NotImplementedError) as exc:
             logger.info(bind_event("pipeline.skipped", stage="candidate", plan=plan.plan_id, reason=str(exc)))
-            return self._skip_result(plan, recorder, "candidate", str(exc))
+            return self._skip_result(plan, recorder, "candidate", str(exc), exc=exc)
         except Exception as exc:
             if expected_error:
                 return self._expected_error_result(plan, recorder, expected_error, exc)
@@ -397,7 +397,18 @@ class ExecutionPipeline:
         recorder: ArtifactRecorder,
         error: str | None = None,
     ) -> ExecutionResult:
-        metrics = self._with_task_intent(plan, self._with_generation_intent(plan, metrics))
+        metrics = self._with_manifest_metadata(plan, self._with_task_intent(plan, self._with_generation_intent(plan, metrics)))
+        policy_failure = self._manifest_evidence_policy_failure(plan, metrics)
+        if status == ResultStatus.PASSED and policy_failure is not None:
+            status = ResultStatus.FAILED
+            metrics.update(
+                {
+                    "failure_kind": "manifest_evidence_policy",
+                    "failure_stage": "evidence",
+                    "manifest_evidence_policy_error": policy_failure,
+                }
+            )
+            error = policy_failure
         return ExecutionResult(
             plan_id=plan.plan_id,
             case_id=plan.case.id,
@@ -420,6 +431,7 @@ class ExecutionPipeline:
         recorder: ArtifactRecorder,
         stage: str,
         reason: str,
+        exc: Exception | None = None,
     ) -> ExecutionResult:
         return self._result(
             plan,
@@ -431,6 +443,7 @@ class ExecutionPipeline:
                 "failure_message": reason,
                 "compare_detail": reason,
                 "backend_availability": "unavailable" if plan.device.backend == BackendKind.GPU else "unknown",
+                **(self._capability_error_metrics(exc) if exc is not None else {}),
             },
             recorder,
             reason,
@@ -452,10 +465,30 @@ class ExecutionPipeline:
                 "failure_stage": stage,
                 "error_type": exc.__class__.__name__,
                 "failure_message": error_text,
+                **self._capability_error_metrics(exc),
             },
             recorder,
             error_text,
         )
+
+    def _capability_error_metrics(self, exc: Exception) -> dict[str, Any]:
+        decision = getattr(exc, "capability_decision", None)
+        if not isinstance(decision, dict):
+            return {}
+        capability = decision.get("capability")
+        status = decision.get("status")
+        reason = decision.get("reason")
+        if not all(isinstance(value, str) and value for value in (capability, status, reason)):
+            return {}
+        metrics: dict[str, Any] = {
+            "aclnn_capability": capability,
+            "aclnn_capability_status": status,
+            "aclnn_capability_reason": reason,
+        }
+        decisions = getattr(exc, "capability_decisions", None)
+        if isinstance(decisions, list) and all(isinstance(item, dict) for item in decisions):
+            metrics["aclnn_capability_decisions"] = decisions
+        return metrics
 
     def _hardware_evidence(self, plan: ExecutionPlan, metrics: dict[str, Any]) -> HardwareEvidence:
         backend = plan.device.backend
@@ -509,6 +542,32 @@ class ExecutionPipeline:
     ) -> ExecutionResult:
         enriched = {**metrics, "failure_kind": metrics.get("failure_kind", "failed"), "failure_stage": stage}
         return self._result(plan, ResultStatus.FAILED, enriched, recorder, error)
+
+    def _manifest_evidence_policy_failure(self, plan: ExecutionPlan, metrics: dict[str, Any]) -> str | None:
+        metadata = plan.case.metadata
+        policy = metadata.get("manifest_runtime")
+        if metadata.get("manifest_lane_kind") != "hardware" or not isinstance(policy, dict):
+            return None
+        backend = plan.device.backend
+        if backend == BackendKind.CPU:
+            return None
+        required_dtype_source = policy.get("require_backend_dtype_source")
+        if required_dtype_source and metrics.get("backend_dtype_source") != required_dtype_source:
+            return f"required backend dtype source is {required_dtype_source}"
+        if not policy.get("require_real_evidence"):
+            return None
+        available_key = "gpu_available" if backend == BackendKind.GPU else "npu_available"
+        if metrics.get(available_key) is not True:
+            return f"required real {backend.value} evidence is unavailable"
+        return None
+
+
+    def _with_manifest_metadata(self, plan: ExecutionPlan, metrics: dict[str, Any]) -> dict[str, Any]:
+        enriched = dict(metrics)
+        for key in ("manifest_lane", "manifest_lane_kind", "manifest_case_include", "manifest_case_index", "manifest_runtime"):
+            if key in plan.case.metadata:
+                enriched[key] = plan.case.metadata[key]
+        return enriched
 
     def _with_task_intent(self, plan: ExecutionPlan, metrics: dict[str, Any]) -> dict[str, Any]:
         enriched = dict(metrics)

@@ -127,8 +127,8 @@ collection_relationship:
 内置 facts 还覆盖 `torch.sum`、`torch.mean`、`torch.norm`、`torch.sort`、`torch.topk` 和 `torch.index_select`。
 
 - reduce/sort/topk/norm：input 默认 floating、rank 1-4 和确定性 normal value policy。attribute、输出数量和 output dtype/shape 仍由 Case invocation/output contract 声明。
-- index-select：input 默认 floating，`index` 收敛为 `int64`。当前没有 source dimension 驱动的 index range constraint，因此 facts 不会声明自动生成的 index 一定可执行；需要 Case exact values 或专用 value relationship。
-- conv 与完整 attention 尚不自动启用。它们分别缺 output spatial formula/groups contract 与 QKV/mask/dropout contract；不要将 generic facts 当成已验证的后端能力。
+- index-select：input 默认 floating，`index` 收敛为 `int64`。source dimension 驱动的 index range 已在 operator facts 和 contract evidence 中表达；exact index values 仍由 Case、generated contract 或专用 value relationship 收口。
+- conv 与完整 attention 已有 operator facts / contract evidence 的雏形，但 backend support 仍不自动推断。它们分别依赖 output spatial formula/groups contract 与 QKV/mask/dropout contract；不要将 generic facts 直接当成已验证的后端能力。
 
 ## Extended Collection Relationships
 
@@ -151,7 +151,7 @@ collection_relationship:
 
 - reduce (`sum`/`mean`)：由 input shape、`dim`、`keepdim` 推导 output shape；`output_dtype: input` 记录 input dtype。
 - sort/topk：sort 保持 input shape；topk 仅当 `0 < k <= size(dim)` 时记录替换该轴后的 output shape。values dtype 跟随 input，indices dtype 为 `int64`。`largest`、`sorted` 保留为 attribute contract。
-- index/select/gather/scatter：均声明 `int64` index 和 `[0, size(dim)-1]` range。gather output shape 跟随 index，scatter 跟随 input，select 移除选中轴。range 是生成 evidence，exact index value 仍由 Case 或后续专用 generator 落实。
+- index/select/gather/scatter：均声明 `int64` index 和 `[0, size(dim)-1]` range。gather output shape 跟随 index，scatter 跟随 input，select 移除选中轴。range 是生成 evidence；exact index value 由 Case、expected-invalid contract 或后续专用 generator 继续收口。
 - matmul/bmm：记录 inner dimension 和 batch broadcast shape。bmm contract 还声明 equal batch mode；当前 evidence 不自动改写用户定义的 tensor shape。
 
 ## Multi-parameter And ACLNN Declarations

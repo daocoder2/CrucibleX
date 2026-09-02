@@ -1,0 +1,19 @@
+version: 1
+kind: manifest
+task:
+  name: operator-boundary-ci-smoke
+  description: executable CPU manifest smoke without accelerator or Torch dependency
+lanes:
+  - name: cpu-contract-smoke
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: ../cases/numpy.mean.yaml
+      - include: ../cases/numpy.add.broadcast.yaml
+runtime:
+  allow_generated_cases: true
+  allow_invalid_cases: false
+reporting:
+  output_dir: .artifacts/operator-boundary-ci-smoke
+  emit_case_index: true
+  emit_lane_index: true

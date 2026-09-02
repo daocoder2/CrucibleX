@@ -1,0 +1,33 @@
+version: 1
+kind: manifest
+task:
+  name: torch-indexing-matrix-evidence
+  description: legal fixed-input GPU/NPU evidence for topk gather scatter reshape and bmm
+lanes:
+  - name: gpu-indexing-matrix-legal
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: ../cases/torch.topk.hardware.yaml
+      - include: ../cases/torch.gather.hardware.yaml
+      - include: ../cases/torch.scatter.hardware.yaml
+      - include: ../cases/torch.reshape.hardware.yaml
+      - include: ../cases/torch.bmm.hardware.yaml
+  - name: npu-indexing-matrix-legal
+    kind: hardware
+    backends: [npu]
+    cases:
+      - include: ../cases/torch.topk.hardware.yaml
+      - include: ../cases/torch.gather.hardware.yaml
+      - include: ../cases/torch.scatter.hardware.yaml
+      - include: ../cases/torch.reshape.hardware.yaml
+      - include: ../cases/torch.bmm.hardware.yaml
+runtime:
+  allow_generated_cases: false
+  allow_invalid_cases: false
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+reporting:
+  output_dir: .artifacts/torch-indexing-matrix-evidence
+  emit_case_index: true
+  emit_lane_index: true

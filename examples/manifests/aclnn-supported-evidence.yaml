@@ -1,0 +1,24 @@
+version: 1
+kind: manifest
+task:
+  name: aclnn-supported-evidence
+  description: source-baked NPU ACLNN evidence for supported ABI forms
+lanes:
+  - name: npu-aclnn-supported
+    kind: hardware
+    backends: [npu]
+    cases:
+      - include: ../cases/aclnn.abs.npu.yaml
+      - include: ../cases/aclnn.add.npu.yaml
+      - include: ../cases/aclnn.mean.npu.yaml
+      - include: ../cases/aclnn.max_dim.npu.yaml
+      - include: ../cases/aclnn.sort.npu.yaml
+runtime:
+  allow_generated_cases: false
+  allow_invalid_cases: false
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+reporting:
+  output_dir: .artifacts/aclnn-supported-evidence
+  emit_case_index: true
+  emit_lane_index: true

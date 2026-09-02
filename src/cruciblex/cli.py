@@ -17,10 +17,22 @@ from rich.table import Table
 from cruciblex import __version__
 from cruciblex.campaign import expand_campaign_payload, select_campaign_shard
 from cruciblex.domain.enums import BackendKind, SchedulerKind, TaskKind
+from cruciblex.domain.manifest import (
+    MANIFEST_V1_PLAN_ITEM_FIELDS,
+    MANIFEST_V1_PLAN_JSON_FIELDS,
+    MANIFEST_V1_VALIDATE_JSON_FIELDS,
+)
 from cruciblex.domain.run import RunContext
 from cruciblex.generation.expand import expand_cases, persist_generated_cases
 from cruciblex.generation.filtering import filter_cases
-from cruciblex.generation.loader import load_cases, load_job_from_context
+from cruciblex.generation.loader import (
+    load_cases,
+    load_job_from_context,
+    load_job_from_manifest,
+    load_manifest,
+    manifest_include_paths,
+    validate_manifest_references,
+)
 from cruciblex.importers import (
     import_backend_case,
     import_dump_case,
@@ -53,8 +65,144 @@ from cruciblex.runtime.scheduler import LocalScheduler, RayScheduler, ray_init_k
 from cruciblex.storage.results import ResultStore
 
 app = typer.Typer(add_completion=False, help="CrucibleX command line interface.")
+manifest_app = typer.Typer(help="Inspect and validate manifest files.")
+app.add_typer(manifest_app, name="manifest")
 console = Console()
 logger = get_logger("cli")
+
+
+@manifest_app.command("validate")
+def manifest_validate(
+    path: Annotated[Path, typer.Argument()],
+    json_output: Annotated[bool, typer.Option("--json", help="Emit machine-readable JSON.")] = False,
+) -> None:
+    """Validate a manifest file."""
+    try:
+        manifest, selected_case_count = validate_manifest_references(path)
+    except (OSError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    if json_output:
+        payload = {
+            "manifest": str(path),
+            "task": manifest.task.name,
+            "lanes": len(manifest.lanes),
+            "cases": selected_case_count,
+            "lane_kinds": [lane.kind for lane in manifest.lanes],
+        }
+        assert tuple(payload) == MANIFEST_V1_VALIDATE_JSON_FIELDS
+        console.out(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+    console.print(f"Manifest valid: {path}")
+    console.print(f"Task: {manifest.task.name}")
+    console.print(f"Lanes: {len(manifest.lanes)}")
+    console.print(f"Selected cases: {selected_case_count}")
+
+
+@manifest_app.command("plan")
+def manifest_plan(
+    path: Annotated[Path, typer.Argument()],
+    nodes: Annotated[Path, typer.Option("--nodes", "-n")] = Path("examples/nodes/local.yaml"),
+    task: Annotated[list[TaskKind] | None, typer.Option("--task", "-t")] = None,
+    scheduler: Annotated[SchedulerKind, typer.Option("--scheduler", "-s")] = SchedulerKind.LOCAL,
+    output: Annotated[Path, typer.Option("--output", "-o")] = Path("cx_output/manifest-plan"),
+    json_output: Annotated[bool, typer.Option("--json", help="Emit machine-readable JSON.")] = False,
+) -> None:
+    """Expand a manifest into execution plans without running them."""
+    tasks = task or [TaskKind.ACCURACY]
+    job = load_job_from_manifest(path, nodes, tasks=tasks, scheduler=scheduler, output_path=output)
+    plans = ExecutionPlanner().build(job)
+    if not plans:
+        _raise_empty_manifest_plan(path, job)
+    manifest = load_manifest(path)
+    rows = _manifest_plan_rows(plans)
+    if json_output:
+        payload = {
+            "manifest": str(path),
+            "task": manifest.task.name,
+            "cases": len(job.cases),
+            "plans": len(plans),
+            "items": rows,
+        }
+        assert tuple(payload) == MANIFEST_V1_PLAN_JSON_FIELDS
+        assert all(tuple(row) == MANIFEST_V1_PLAN_ITEM_FIELDS for row in rows)
+        console.out(json.dumps(payload, ensure_ascii=False, indent=2))
+        return
+
+    table = Table(title="Manifest Plan")
+    table.add_column("Lane")
+    table.add_column("Case")
+    table.add_column("Backend")
+    table.add_column("Task")
+    for row in rows:
+        table.add_row(row["lane"], str(row["case_id"]), row["backend"], row["task"])
+    console.print(f"Manifest: {path}")
+    console.print(f"Task: {manifest.task.name}")
+    console.print(f"Cases: {len(job.cases)}")
+    console.print(f"Plans: {len(plans)}")
+    console.print(table)
+
+
+def _manifest_plan_rows(plans) -> list[dict[str, Any]]:
+    return [
+        {
+            "plan_id": plan.plan_id,
+            "lane": str(plan.case.metadata.get("manifest_lane", "")),
+            "lane_kind": str(plan.case.metadata.get("manifest_lane_kind", "")),
+            "case_id": plan.case.id,
+            "case_name": plan.case.name,
+            "backend": plan.device.backend.value,
+            "node": plan.node.display_name,
+            "device_id": plan.device.id,
+            "task": plan.task.value,
+        }
+        for plan in plans
+    ]
+
+
+def _manifest_run_metadata(manifest_path: Path, job, plans) -> dict[str, Any]:
+    include_paths = [str(include_path) for include_path in manifest_include_paths(manifest_path)]
+    lane_counts: dict[str, int] = {}
+    backend_counts: dict[str, int] = {}
+    for plan in plans:
+        lane = str(plan.case.metadata.get("manifest_lane", ""))
+        if lane:
+            lane_counts[lane] = lane_counts.get(lane, 0) + 1
+        backend = plan.device.backend.value
+        backend_counts[backend] = backend_counts.get(backend, 0) + 1
+    return {
+        "manifest": str(manifest_path),
+        "manifest_sha256": _sha256_file_hex(manifest_path),
+        "manifest_includes": [
+            {"path": include_path, "sha256": _sha256_file_hex(Path(include_path))}
+            for include_path in include_paths
+        ],
+        "manifest_summary": {
+            "selected_case_count": len(job.cases),
+            "plan_count": len(plans),
+            "plan_count_by_lane": lane_counts,
+            "plan_count_by_backend": backend_counts,
+        },
+    }
+
+
+def _raise_empty_manifest_plan(manifest_path: Path, job) -> None:
+    case_backends = sorted({
+        str(backend)
+        for case in job.cases
+        for backend in (case.metadata.get("manifest_backends") or [])
+    })
+    node_backends = sorted({device.backend.value for node in job.nodes for device in node.devices})
+    task_values = [task.value for task in job.tasks]
+    raise typer.BadParameter(
+        "manifest produced no execution plans: "
+        f"manifest={manifest_path} cases={len(job.cases)} tasks={task_values} "
+        f"case_backends={case_backends or 'unspecified'} node_backends={node_backends}; "
+        "check lane backends, node devices, and task eligibility"
+    )
+
+
+def _sha256_file_hex(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 @app.command()
@@ -1235,6 +1383,7 @@ def run(
     nodes: Annotated[Path, typer.Option("--nodes", "-n")] = Path(
         "examples/nodes/local.yaml"
     ),
+    manifest: Annotated[Path | None, typer.Option("--manifest")] = None,
     task: Annotated[list[TaskKind] | None, typer.Option("--task", "-t")] = None,
     scheduler: Annotated[SchedulerKind, typer.Option("--scheduler", "-s")] = SchedulerKind.RAY,
     ray_address: Annotated[str | None, typer.Option("--ray-address", envvar="RAY_ADDRESS")] = None,
@@ -1257,6 +1406,7 @@ def run(
         bind_event(
             "run.start",
             case=case,
+            manifest=manifest,
             nodes=nodes,
             tasks=",".join(tasks),
             scheduler=scheduler,
@@ -1268,7 +1418,7 @@ def run(
     if version_policy not in {"warn", "strict"}:
         raise typer.BadParameter("version policy must be warn or strict")
     context = RunContext(
-        case_path=case,
+        case_path=manifest or case,
         node_path=nodes,
         tasks=tasks,
         scheduler=scheduler,
@@ -1285,13 +1435,18 @@ def run(
             "input_schema_version": 1,
             "runtime_compatibility": compatibility,
             "version_policy": version_policy,
+            "manifest": str(manifest) if manifest is not None else None,
             "discovery_snapshot": str(discovery_artifacts["snapshot"]),
         }
     })
     if version_policy == "strict" and compatibility["status"] == "mismatched":
         raise typer.BadParameter("driver and worker pipeline fingerprints do not match")
-    job = load_job_from_context(context)
+    job = load_job_from_manifest(manifest, nodes, tasks=tasks, scheduler=scheduler, output_path=output) if manifest is not None else load_job_from_context(context)
     plans = ExecutionPlanner().build(job)
+    if manifest is not None and not plans:
+        _raise_empty_manifest_plan(manifest, job)
+    if manifest is not None:
+        context = context.model_copy(update={"metadata": {**context.metadata, **_manifest_run_metadata(manifest, job, plans)}})
     resume_state = None
     selected_plans = plans
     skipped_count = 0

@@ -27,7 +27,7 @@ With a Ray address, worker rows include CrucibleX package identity plus runtime 
 
 ## `cx run`
 
-Execute a case on a set of nodes.
+Execute a case on a set of nodes, or pass a manifest for lane-oriented execution. `--task` continues to select the execution task kind; `--manifest` selects a top-level manifest.
 
 ```bash
 uv run cx run \
@@ -36,6 +36,26 @@ uv run cx run \
   --task run \
   --scheduler local \
   --output cx_output/local-run
+
+uv run cx run \
+  --manifest examples/manifests/operator-contract-suite.yaml \
+  --nodes examples/nodes/local.yaml \
+  --scheduler local \
+  --output cx_output/operator-contract-suite
+
+uv run cx run \
+  --manifest examples/manifests/local-smoke-manifest.yaml \
+  --nodes examples/nodes/local.yaml \
+  --scheduler local \
+  --output cx_output/local-smoke-manifest
+```
+
+Inspect a manifest without executing it:
+
+```bash
+uv run cx manifest validate examples/manifests/operator-contract-suite.yaml
+uv run cx manifest plan examples/manifests/operator-contract-suite.yaml --nodes examples/nodes/local.yaml
+uv run cx manifest plan examples/manifests/operator-contract-suite.yaml --nodes examples/nodes/local.yaml --json
 ```
 
 Use `--scheduler local` for smoke tests. Ray remains the default path for distributed execution. For comparison cases, `oracle.reference_executor` is only executed when `oracle.metadata.execute_reference` is set. Bare ACLNN function cases use `executor: aclnn` with `api_type: aclnn_function`; op signatures live under `invocation.metadata.aclnn`.

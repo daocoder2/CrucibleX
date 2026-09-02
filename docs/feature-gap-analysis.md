@@ -25,60 +25,128 @@ The core trunk is now viable:
 - GPU has a validated Torch path: torch 2.6.0+cu126 in the GPU image, Ray GPU placement, examples/cases/torch.add.gpu.yaml, and CPU-vs-GPU allclose through Ray.
 - NPU has a concrete verification path through the NPU image and torch_npu smoke case, and should be run as a hardware gate whenever matching Ascend workers are available.
 
-The remaining work is breadth: old ATK had many front-door converters, generator variants, backend-specific probes, and operational commands. CrucibleX has the cleaner trunk but needs selective reconstruction of those high-value surfaces.
+The remaining work now splits into two parts: harden the ATK ideas already absorbed by CrucibleX, and fill the still-open deep gaps. The cleaner trunk is in place; the remaining work is selective extension, not broad reconstruction.
+
+## ATK Core Module Import Assessment
+
+ATK should be mined for product capability and backend knowledge, not copied as a runtime architecture. The useful migration unit is the behavior contract: generator policy, comparator policy, backend bridge semantics, importer loss reporting, and report fields. Avoid moving ATK's global state, dynamic CLI registration, Celery scheduler, DB ownership, or service runtime into the CrucibleX core.
+
+### Current Stabilization Focus
+
+Recent CrucibleX iterations have already absorbed several first-priority ATK ideas: deterministic matrix profiles, mixed tolerance and richer accuracy metrics, a precision policy contract, and bounded campaign matrix expansion. Treat these as CX-native contracts from this point forward. The next work should stabilize examples, docs, and acceptance tests around them before mining more ATK breadth.
+
+The practical priority shift is:
+
+- Move generation and comparison work from P0 import to contract stabilization: changes that affect `CaseSpec.generation.metadata`, operator facts, or generated artifact evidence stay P0; adding more built-in facts is P1 unless it enables a hardware gate.
+- Replace the vague goal of "more facts" with a concrete backlog: reduce, topk/sort, index/mask, reshape/layout, matmul variants, conv, norm, attention, and ACLNN signature families each need named parameter constraints, output-shape evidence, invalid-case generation, and at least one checked-in CPU/GPU/NPU or ACLNN example where the backend is supported.
+- Keep backend run modes, report field semantics, and old ATK asset importers as separate P1 tracks; traversal, XRun, Excel, server, and DB remain compatibility or product-layer decisions, not core architecture work.
+
+### Rewrite Into CrucibleX Core Or Plugins
+
+| ATK area | Why it matters | CrucibleX target | Priority |
+| --- | --- | --- | --- |
+| `atk/case_generator/generator/` | Rich dtype, shape, value, tensor/scalar/attribute, boundary, and multi-parameter input-space coverage is ATK's strongest durable asset | Re-express as generation constraints and generator plugins over `CaseSpec`, not as ATK's generator class hierarchy | P0 |
+| `atk/case_generator/generator/data_types/matrix_profiles.py` | Numerical-risk profiles for matrix operators are more valuable than plain random tensors | Already landed in CX as `matrix_profile`; extend the profile library and operator coverage | P1 |
+| `atk/case_generator/generator/processor.py` | Shape, size, numel, and cross-input restriction handling captures real operator constraints | CX already has the first declarative constraints; extend rank ranges, dimension aliases, product limits, broadcasting, and storage-shape policies | P1 |
+| `atk/case_generator/traversal/` | Batch combination and traversal logic supports operator breadth and fuzz campaigns | CX has already absorbed the campaign matrix direction; keep only the bounded selection behavior that still adds value | P2 |
+| `atk/tasks/post_process/` | Mixed tolerance, benchmark comparison, invalid-value checks, and error metrics improve accuracy decisions | Mixed tolerance and core accuracy metrics already exist in CX; keep extending comparator plugins and report postprocess metrics | P1 |
+| `atk/tasks/run_modes/` | Ascend-specific run controls such as deterministic algorithms, L2 cache, and memory reuse affect reproducibility and performance evidence | Model as backend/runtime policy metadata on cases, nodes, or execution requests | P1 |
+| `atk/tasks/backends/lib_interface/acl_wrapper.py` and ACLNN API helpers | Tensor/scalar/list descriptors, workspace lifecycle, formats, storage shape, and output ownership are hard-won backend knowledge | Use as a reference for `plugins/executors/aclnn_bridge.py` capability increments with hardware gates | P1 |
+| `atk/tasks/report/report_title/` | The field inventory reflects user-facing accuracy, performance, memory, and summary expectations | Extract field semantics into CX JSONL/CSV/markdown exports; do not copy the title-factory implementation | P1 |
+
+### Keep As Import Or Export Adapters
+
+| ATK area | CrucibleX treatment |
+| --- | --- |
+| `api_to_yaml.py` | Add or extend an API/spec importer that produces operator facts and case YAML with provenance. |
+| `dump_to_case.py` | Continue extending `cx import-dump` for concrete input snapshots and replay cases. |
+| `profile_to_case.py` | Continue extending `cx import-profile` for observed dtype/shape/value samples. |
+| `temu_to_case.py` and `migrate_atb_cases.py` | Keep translation at the importer boundary and preserve backend metadata for external-runtime execution. |
+| `utils/xrun/` and Excel helpers | Add adapters only for confirmed user workflows, with strict lossy-field reports. |
+
+### Do Not Reintroduce As Core Architecture
+
+| ATK area | Reason |
+| --- | --- |
+| `atk/tasks/celery_*` | Ray and the local scheduler are the CrucibleX execution planes; adding Celery would split lifecycle ownership. |
+| `atk/server/` and `atk/db/` | Service and database ownership should wait until CLI, artifact, and result contracts are stable; start with read-only report viewing if needed. |
+| `atk/bin/*` dynamic command structure | Keep user workflows, but express them through stable `cx` command groups instead of one legacy command per conversion step. |
+| `atk/common/output_manager.py` and global output state | CrucibleX already owns artifacts through run manifests, result stores, and driver-side persistence. |
+| `atk/configs/*` as a full object model | Borrow field semantics, but keep CX's smaller Pydantic domain schema as the canonical contract. |
 
 ## Coverage Matrix
 
 | ATK capability area | Current CrucibleX status | Target coverage | Priority |
 | --- | --- | --- | --- |
 | Run orchestration | Rebuilt with cx run, planning, local/Ray schedulers, result store, resume, and reports | Keep as the primary trunk; add only missing operational controls | P0 |
+| Manifest campaign orchestration | Manifest schema, lane/case include expansion, runtime policy projection, filters, indexes, and report fields are implemented | Stabilize as the public batch entry for contract, hardware, and preflight evidence lanes | P0 |
 | CPU/GPU operator validation | CPU and GPU Torch images are explicit; Ray GPU E2E is validated | Use Torch GPU case as the required gate for GPU operator claims | P0 |
 | NPU validation | NPU image and smoke case exist; backend maps to Ray custom npu resource | Keep repeatable Ascend hardware gates and record torch/torch_npu/CANN versions | P0 |
 | ACLNN validation | Executor imports a runtime module and maps to NPU resource | Build real ACLNN sample modules and hardware E2E gates | P1 |
 | DCU validation | Backend and resource mapping exist | Add HIP/torch-dcu or vendor runtime executor and hardware gate | P2 |
 | Case schema | Clean YAML/JSON case and node schema | Extend around constraints and metadata, not old class compatibility | P0 |
-| Data generation | Deterministic default generator, count/seed, constraints, invalid cases, random/boundary coverage | Rebuild ATK's rich dtype/shape/value/traversal coverage as plugins | P0 |
+| Data generation | Deterministic default generator, count/seed, constraints, invalid cases, random/boundary coverage | Most of the core is now in CX; mine ATK only for remaining edge cases and richer coverage policies | P1 |
 | Parameter relationships | Linked dtype/shape and simple random/boundary metadata exist | Add shape expressions, broadcasting, rank coupling, optional params, list and tensor-list helpers | P0 |
 | Fuzz | Fuzz task, provenance, reports, and repro rows exist | Make fuzz policy expressive enough for operator facts and large campaigns | P1 |
 | Performance | Latency rows exist | Add backend synchronization, warmup/repeat policy, percentiles, throughput, and vendor profiler hooks | P1 |
 | Memory | Process memory rows exist | Add CUDA/NPU/DCU allocator metrics and peak reset/sync semantics | P1 |
-| Reports | JSONL, CSV, summary, postprocess, markdown, failure clusters | Add backend matrices, trend-ready exports, operator coverage tables, and richer report titles | P1 |
+| Reports | JSONL, CSV, summary, postprocess, markdown, failure clusters | Keep extending the established report semantics with backend matrices, trend-ready exports, operator coverage tables, and richer report titles | P1 |
 | Repro | Repro bundles and per-plan rerun commands exist | Emit minimized case YAML and input snapshots for failing generated/fuzz cases | P1 |
 | Operator onboarding | Facts template and scaffold generation exist | Promote facts-to-case automation and hardware promotion commands | P1 |
 | API-to-YAML import | Not rebuilt | Translate API docs/specs into CrucibleX facts/cases | P1 |
-| Dump/profile/Temu/ATB migration | Not rebuilt | Import old artifacts into normalized facts/cases plus preserved provenance | P1/P2 |
+| Dump/profile/Temu/ATB migration | Importers and external-runtime adapters exist for the main paths | Keep old assets behind import/export adapters with provenance and lossy-field reports | P1/P2 |
 | XRun/Excel flows | Not rebuilt | Provide import/export adapters only if active users still depend on those files | P2 |
-| Server/DB/UI | Not rebuilt | Defer until CLI/batch contracts stabilize | P3 |
+| Server/DB/UI | Not rebuilt | Do not reintroduce ATK server/DB as core; defer until CLI/batch contracts stabilize | P3 |
 
 ## P0: Must Cover Next
 
-### 1. Generation Core Parity
+### 0. Manifest Public Contract
 
-Old ATK's main strength was broad operator input-space coverage. CrucibleX needs richer generation before backend coverage will scale.
+Manifest is now the top-level batch contract for P0/P1 work. It must remain an orchestration layer, not a replacement for case, operator fact, backend, or evidence schemas.
 
 Implemented:
 
+- `cx run --manifest`, `cx manifest validate`, and `cx manifest plan` load lanes, case includes, runtime policy, filters, and reporting options.
+- Manifest lanes distinguish `contract`, `hardware`, and `preflight_blocked` evidence purposes.
+- Lane and case include metadata are projected into run artifacts and stable report exports through `manifest_lane`, `manifest_lane_kind`, and `manifest_case_include`.
+- Manifest hashes, include hashes, lane indexes, and case indexes provide an auditable link from batch entrypoint to expanded execution plans.
+
+Current P0 boundary work:
+
+- Freeze manifest schema v1 field semantics for `task`, `lanes`, `runtime`, `filters`, and `reporting`.
+- Keep explicit lane backends authoritative over case-level inference.
+- Keep hardware evidence requirements as reportable metadata and gate policy, not local smoke-test hard failures.
+- Maintain `examples/manifests/operator-boundary-campaign.yaml` as the canonical contract/hardware/preflight campaign example.
+
+### 1. Generation Core Parity
+
+Old ATK's main strength was broad operator input-space coverage. CrucibleX now has the core generation mechanism in place: policy libraries, operator facts, contract expansion, invalid mutation, generated artifact persistence, and typed collection generation. Treat generation parity as established for the common tensor-operator families; the active work is boundary completion and hardware-backed acceptance.
+
+Established coverage:
+
 - Generated JSON and YAML are persisted for expanded cases.
-- Deterministic expansion supports count, invalid_count, seeds, max_elements, max_bytes, boundary coverage, random coverage, and linked dtype/shape metadata.
-- Default input generation now supports tensor_list, tensor_tuple, scalar_list, scalar_tuple, attribute_list, and attribute_tuple with collection length, item_shapes, item_values, item_dtypes, and explicit items metadata.
+- Deterministic expansion supports count, invalid_count, seeds, max_elements, max_bytes, boundary coverage, random coverage, linked dtype/shape metadata, and operator-fact merging.
+- Default input generation supports tensor_list, tensor_tuple, scalar_list, scalar_tuple, attribute_list, and attribute_tuple with collection length, item_shapes, item_values, item_dtypes, explicit items metadata, and collection relationships.
+- Reduce, sort/topk, index/mask, reshape/layout, and matmul/bmm families have legal expansion, representative invalid cases, output-shape or dtype evidence, and checked-in examples.
+- Operator boundary campaign evidence separates CPU contract execution from GPU/NPU legal hardware lanes, so generated expected-invalid samples are not counted as device runtime rejection evidence.
 
-Remaining deliverables:
+P0 acceptance status:
 
-- Shape relationships support declarative `same_rank`, `same_numel`, `broadcastable_with`, `dim_equal`, `divisible_by`, and `transpose_of` metadata through the `shape_relationships` constraint; see `docs/shape-relationships.md`.
-- Dtype generation supports `dtype_policy` groups with deterministic selection, allow-list filtering, and backend-specific `backend_allowed` filtering.
-- Dtype promotion supports declarative `dtype_promotion.sources` and records the resolved source dtypes in parameter metadata.
-- Value generation supports `value_policy` kinds `constant`, `zero`, `one`, `nan`, and `inf` where the dtype permits it, in addition to boundary/random ranges.
-- Attribute generation supports `enum_values` and `optional_values` while preserving the positional input contract.
-- The checked-in `examples/cases/numpy.add.generated.yaml` case combines broadcasting, dtype filtering, constant/one values, deterministic expansion, and executable CPU add; two generated runs are byte-identical and both expanded plans pass.
-- Hardware operator breadth now includes checked-in `torch.relu`, `torch.softmax(dim=1)`, and `torch.matmul` cases; all three passed real Ray CPU/GPU accuracy and cross-device comparison on the unified cluster. The same three cases also passed real NPU accuracy on a validated NPU host using the documented privileged `cx-ray:2.58.0-py311-npu-aarch64` container; the NPU coverage gate passed.
+- Manifest public contract is covered by validate, plan, run, lane/case index, include/hash provenance, and stable report projections. The checked-in operator-boundary CI smoke executes a no-Torch CPU manifest; the canonical Torch boundary campaign remains a source-baked Docker evidence gate.
+- ACLNN capability decisions are executable and reportable. The checked-in preflight campaign verifies tensor-list/optional forms remain `future_abi`, while dynamic output, non-ND format, and declared strides remain `preflight_blocked`, before any native library call.
+- A supported ACLNN capability needs matching resource lifecycle plus declared mock-lifecycle or NPU-E2E evidence; changing matrix status without that declaration fails the promotion gate.
 
-Remaining deliverables:
+Current P1 boundary work:
 
-- Shape work: `rank_range`, `dimension_alias`, and cross-parameter `product_limits` are supported through generation constraints; transpose-like relationships remain a future extension.
-- Dtype work: mixed dtype constraints remain; backend-specific filtering and reference dtype promotion are supported by generation constraints.
-- Value work: deterministic `uniform`, `normal`, and `sparsity` policies are supported, along with dtype-aware `integer_bounds` and scaled `float_bounds`; richer boundary sets remain a future extension.
-- Optional omission/keyword binding and nested structures beyond first-level collections.
-- Human-readable generated YAML for every run path, including load_job paths outside cx generate.
+| Family | Current state | Remaining boundary |
+| --- | --- | --- |
+| conv2d | supported for legal NCHW/OIHW generation, output-shape contract, channel/groups invalid samples, and CPU/GPU/NPU legal evidence | broaden stride/padding/dilation/groups combinations and add more non-default bias/layout variants |
+| layer_norm | supported for trailing normalized_shape, affine parameter contracts, invalid mismatch samples, and source-baked CPU/GPU/NPU legal evidence, including rank-4 two-axis `[4,5]` affine normalization | expand dtype/layout combinations and cover more rank variants |
+| group_norm / instance_norm | supported for legal generation, channel/group or affine constraints, invalid mismatch samples, and source-baked CPU/GPU/NPU legal evidence through the four-case complex norm campaign, including `use_input_stats=false` with explicit running mean/variance | add more channel/group divisibility negatives and optional affine/running-stat combinations |
+| scaled_dot_product_attention | supported for legal Q/K/V, causal, broadcast-mask, and GQA GPU/NPU evidence; dropout-range, mask-broadcast, and causal-plus-mask combinations execute as expected-invalid CPU contract cases | expand dtype/layout combinations and add new backend-specific capability lanes only when a reproducible runtime rejection exists |
+| ACLNN signatures | partial: tensor/scalar/native arrays/static multi-output are supported or E2E-covered; unsupported forms are preflight-blocked or future_abi | tensor-list ownership, optional tensor/list ABI, dynamic output counts, non-ND format, and stride/storage-offset ABI remain blocked |
+
+Acceptance stays strict: every promoted family needs one policy-library or fact entry, legal expansion test, invalid expansion test when constrained, checked-in example YAML, and hardware evidence when making CPU/GPU/NPU/ACLNN claims. ACLNN facts remain tied to ABI capability decisions instead of generation assumptions.
 
 Design constraint: implement this as generator and constraint plugins over the current domain model. Do not reintroduce ATK's deep generator class hierarchy.
 
@@ -94,10 +162,16 @@ Implemented:
 - cx doctor --ray-address prints the same worker runtime summary directly for interactive checks.
 - GPU gate docs and tests keep executor: torch explicit, so Ray scheduling checks are not confused with GPU operator validation.
 - Hardware validation claims require real devices: GPU and NPU on documented real hardware environments.
+- Operator boundary campaign now has separated CPU contract, GPU legal-evidence, and NPU legal-evidence lanes with archived manifest/results/report/summary/postprocess artifacts.
+- `examples/manifests/torch-indexing-matrix-evidence.yaml` has source-baked GPU and NPU evidence for fixed legal topk, gather, scatter, reshape, and bmm: each lane passed 5/5 with device-tensor dtype evidence and a complete manifest/results/report/summary/postprocess archive. ACLNN evidence is documented separately for ACLNN executor lanes.
+- Fixed-input three-side add evidence records CPU/GPU/NPU comparability under a shared case fingerprint.
 
 Remaining deliverables:
 
-- Add a documented NPU smoke gate with exact image, CANN, torch, torch_npu, device availability, Ray resource, and result artifacts from the real NPU machine.
+- `examples/manifests/complex-operator-evidence.yaml` is the reusable legal-only GPU/NPU entrypoint for baseline and grouped/dilated conv2d, layer_norm, masked attention, causal attention, broadcast-mask attention, and grouped-query attention. Its source-baked GPU and NPU runs each passed 7/7 with device-tensor dtype evidence and complete manifest/results/report/summary/postprocess archives.
+- `examples/manifests/attention-gqa-capability-probe.yaml` validates `scaled_dot_product_attention(enable_gqa=True)` on legal grouped-query shapes; its source-baked GPU and NPU probes each passed 1/1 with device-tensor dtype evidence and complete archives.
+- Expand hardware evidence matrices for conv/norm/attention and ACLNN non-unary signatures beyond the current legal-lane samples.
+- Validate actor-local device indexing on multi-NPU hardware after rebuilding matching workers; single-device NPU evidence does not prove multi-device placement.
 
 ### 3. Backend Device Mapping Correctness
 
@@ -112,8 +186,8 @@ Implemented:
 
 Remaining deliverables:
 
-- Validate actor-local device indexing on multi-NPU hardware runs after rebuilding matching workers.
-- Include resolved device evidence in hardware probe summaries and docs for each hardware gate.
+- Include resolved-device evidence in hardware probe summaries, report export rows, and each hardware gate archive.
+- Record multi-device placement assumptions next to each gate result: local physical device IDs versus Ray actor-local device IDs.
 
 ## P1: High-Value ATK Coverage
 
@@ -160,7 +234,7 @@ Priority order should now move to real backend executor depth and NPU validation
 
 ### 6. ACLNN And NPU Depth
 
-The torch_npu path is now validated on a single real NPU host without Ray. Bare ACLNN coverage is still a separate executor depth item.
+The torch_npu path is now validated on a single real NPU host without Ray. Bare ACLNN coverage now has a bridge, capability matrix, and multiple real E2E samples; the remaining depth is tensor-list ownership, dynamic output counts, non-ND format, stride/storage-offset ABI, and deeper profiler artifacts.
 
 Implemented:
 
@@ -176,7 +250,8 @@ Implemented:
 Remaining deliverables:
 
 - ACLNN signature schema v1 now supports int/float/bool arrays, scalar aliases, optional attributes through binding omission, and multiple tensor outputs. Tensor lists and dynamic output counts remain explicitly unsupported until their C ABI ownership contract is defined.
-- Add more ACLNN sample ops beyond `Abs` and `Add` to exercise array attributes, optional arguments, and non-unary signatures.
+- `examples/manifests/aclnn-supported-evidence.yaml` is the reusable NPU evidence entrypoint for Abs, Add, Mean (int array), MaxDim, and Sort (static multi-output). Its source-baked NPU run passed 5/5 with device-tensor dtype evidence and a complete manifest/results/report/summary/postprocess archive.
+- Add more ACLNN sample ops beyond `Abs` and `Add` to exercise float/bool array attributes, optional arguments, and non-unary signatures.
 - Deeper CANN/NPU profiler artifacts beyond torch_npu allocator hooks.
 
 ### 7. Fuzz And Failure Reduction
@@ -245,6 +320,11 @@ Start with cx import api and cx import dump, preserve provenance and lossy-field
 ### Milestone 4: ACLNN/NPU/DCU Depth
 
 Real ACLNN multi-output hardware E2E is complete: `examples/cases/aclnn.sort.npu.yaml` calls CANN 8.3 `aclnnSortGetWorkspaceSize` and `aclnnSort` with host-side native bool/int attributes and `[2,4]` fp32/int64 outputs; `examples/cases/aclnn.max_dim.npu.yaml` validates `aclnnMaxDimGetWorkspaceSize` and `aclnnMaxDim` with reduced `[2,1]` fp32/int64 outputs. Both pass through `scripts/npu_aclnn_multi_output_gate.sh` on a validated NPU host. Array descriptor hardware E2E is also complete: `examples/cases/aclnn.mean.npu.yaml` calls CANN `aclnnMeanGetWorkspaceSize` and `aclnnMean` with `aclIntArray dim=[1]`, native `keepDim=false`, native fp32 dtype, and fp32 `[2]` output; it passes through `scripts/npu_aclnn_array_gate.sh`. DCU executor/runtime and backend-specific profiler artifacts remain future work.
+
+## Attention Runtime Capability Boundary
+
+A `preflight_blocked` attention lane is reserved for a documented backend capability, not an invalid PyTorch call. A future declaration must identify the backend, the feature (for example a kernel-specific mask, causal, or dropout mode), a stable rejection reason, and either a runtime probe or source-baked device evidence. Until such proof exists, dropout-range, causal-plus-mask, and mask-broadcast failures remain operator contract invalid cases and must not be promoted to a runtime capability verdict.
+
 
 ## What Not To Copy From ATK
 

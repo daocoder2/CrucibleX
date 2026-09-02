@@ -214,10 +214,11 @@ class ReproBundleWriter:
         return "\n".join(lines) + "\n"
 
     def _rerun_command(self, manifest: RunManifest, plan_id: str, cluster_index: int) -> str:
+        source_flag = "--manifest" if manifest.metadata.get("manifest") else "--case"
         parts = [
             "cx",
             "run",
-            "--case",
+            source_flag,
             str(manifest.case_path),
             "--nodes",
             str(manifest.node_path),

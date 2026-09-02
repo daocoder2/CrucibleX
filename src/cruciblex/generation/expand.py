@@ -126,6 +126,13 @@ def _apply_contract_invalid_value(case: CaseSpec, invalid_index: int) -> CaseSpe
         index_shape = list(index.shape.dims) if index and index.shape and index.shape.dims else []
         if index_shape:
             mutations.append((index_name, {"tensor_values": _filled_values(index_shape, input_shape[axis]), "selected_invalid_value": input_shape[axis]}, "index_out_of_range"))
+    if family == "matmul":
+        right_name = str(contract.get("right", "other"))
+        right = parameters.get(right_name)
+        if right and right.shape and len(right.shape.dims) >= 3:
+            invalid_shape = list(right.shape.dims)
+            invalid_shape[-3] = max(2, invalid_shape[-3] + 2)
+            mutations.append((right_name, invalid_shape, "batch_broadcast_mismatch"))
     if family in {"where", "masked_fill"}:
         mask_name = str(contract.get("condition" if family == "where" else "mask", "condition" if family == "where" else "mask"))
         mask = parameters.get(mask_name)

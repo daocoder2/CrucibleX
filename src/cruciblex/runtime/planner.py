@@ -18,7 +18,11 @@ class ExecutionSlot:
 class ExecutionPlanner:
     def build(self, job: JobSpec) -> list[ExecutionPlan]:
         slots = self._execution_slots(job)
-        return [self._plan(case, slot, job) for case, slot in product(job.cases, slots)]
+        return [
+            self._plan(case, slot, job)
+            for case, slot in product(job.cases, slots)
+            if self._case_supports_slot(case, slot)
+        ]
 
     def _execution_slots(self, job: JobSpec) -> list[ExecutionSlot]:
         return [
@@ -43,6 +47,14 @@ class ExecutionPlanner:
     def _eligible_devices(self, node: NodeSpec) -> list[DeviceSpec]:
         node_backend = self._node_backend(node)
         return [device for device in node.devices if device.backend == node_backend]
+
+    def _case_supports_slot(self, case, slot: ExecutionSlot) -> bool:
+        backends = case.metadata.get("manifest_backends")
+        if backends is None:
+            return True
+        if not isinstance(backends, list):
+            raise TypeError("case manifest_backends metadata must be a list")
+        return slot.device.backend.value in {str(backend) for backend in backends}
 
     def _node_backend(self, node: NodeSpec) -> BackendKind:
         backends = {device.backend for device in node.devices}

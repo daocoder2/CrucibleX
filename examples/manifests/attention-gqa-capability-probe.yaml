@@ -1,0 +1,25 @@
+version: 1
+kind: manifest
+task:
+  name: attention-gqa-capability-probe
+  description: source-baked GPU/NPU probe for scaled dot product attention enable_gqa capability
+lanes:
+  - name: gpu-attention-gqa-probe
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: ../cases/torch.attention.gqa.capability.yaml
+  - name: npu-attention-gqa-probe
+    kind: hardware
+    backends: [npu]
+    cases:
+      - include: ../cases/torch.attention.gqa.capability.yaml
+runtime:
+  allow_generated_cases: false
+  allow_invalid_cases: false
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+reporting:
+  output_dir: .artifacts/attention-gqa-capability-probe
+  emit_case_index: true
+  emit_lane_index: true

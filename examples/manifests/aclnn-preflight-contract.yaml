@@ -1,0 +1,18 @@
+version: 1
+kind: manifest
+task:
+  name: aclnn-preflight-contract
+  description: executable no-native-call ACLNN ABI boundary audit
+lanes:
+  - name: aclnn-preflight
+    kind: preflight_blocked
+    backends: [cpu]
+    cases:
+      - include: ../cases/aclnn.preflight-boundaries.yaml
+runtime:
+  allow_generated_cases: true
+  allow_invalid_cases: false
+reporting:
+  output_dir: .artifacts/aclnn-preflight-contract
+  emit_case_index: true
+  emit_lane_index: true

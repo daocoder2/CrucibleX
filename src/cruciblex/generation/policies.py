@@ -68,7 +68,7 @@ OPERATOR_FACT_LIBRARY: dict[str, dict[str, Any]] = {
         },
     },
     "torch.sort": {
-        "contract": {"family": "topk", "input": "input", "dim_parameter": "dim", "output_dtype": "input", "k": None},
+        "contract": {"family": "sort", "input": "input", "dim_parameter": "dim", "output_dtype": "input"},
         "parameters": {
             "input": {"dtype_policy": {"library": "floating"}, "shape_policy": {"rank_range": [1, 4]}, "value_policy": {"kind": "normal", "scale": 1.0}},
         },

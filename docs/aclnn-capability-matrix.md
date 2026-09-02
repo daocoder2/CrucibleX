@@ -1,25 +1,41 @@
 # ACLNN Capability Matrix
 
-ACLNN bridge 以 ABI 参数 kind 为能力边界。每个 Case 的 `invocation.metadata.aclnn` 会在动态库解析前进行 preflight；未覆盖 ABI 被显式拒绝，不会进入不明所有权的 native 调用。
+ACLNN bridge uses ABI argument kinds and tensor-layout declarations as explicit capability boundaries. Each case's `invocation.metadata.aclnn` is validated before dynamic-library resolution. A rejected declaration never reaches a native call with unknown ownership.
 
-## 已支持
+The executable decision surfaces are `aclnn_capability_decision(arg)` and `aclnn_spec_capability_decisions(spec)`. They return `capability`, `status`, and `reason`; the spec form additionally emits the `multi_output_static` verdict. `AclnnRuntime.validate_capabilities` consumes the same argument decision, so report/preflight callers do not need to parse exception text. Status values are stable: `supported`, `preflight_blocked`, `future_abi`, and `unsupported` for unknown kinds.
 
-| ABI kind | 资源生命周期 | 验证状态 |
+A preflight failure is exported as `aclnn_capability`, `aclnn_capability_status`, and `aclnn_capability_reason` in result metrics and the stable report schema. The first blocking decision is also retained as the head element of `aclnn_capability_decisions_json`, which preserves the full spec-level decision list for audit. A capability may be promoted to `supported` only when the executable promotion gate has a matching lifecycle declaration and at least one `mock_lifecycle` or `npu_e2e` evidence declaration.
+
+## Supported
+
+| Capability | Resource lifecycle | Evidence boundary |
 | --- | --- | --- |
-| `tensor` | `aclCreateTensor` / `aclDestroyTensor` | 单输出、多输出 NPU E2E |
-| `scalar` | `aclCreateScalar` / `aclDestroyScalar` | mock 生命周期覆盖 |
-| `native_int` | caller-owned | Sort/MaxDim NPU E2E |
-| `native_bool` | caller-owned | Sort/MaxDim NPU E2E |
+| `tensor` with static `ND`, zero offset, and implicit contiguous layout | `aclCreateTensor` / `aclDestroyTensor` | NPU E2E |
+| Static multi-output tensors | one tensor descriptor lifecycle per output | Sort and MaxDim NPU E2E |
+| `scalar` | `aclCreateScalar` / `aclDestroyScalar` | mock lifecycle |
+| `native_int`, `native_bool` | caller-owned | Sort/MaxDim NPU E2E |
 | `int_array` | `aclCreateIntArray` / `aclDestroyIntArray` | Mean NPU E2E |
-| `float_array` | `aclCreateFloatArray` / `aclDestroyFloatArray` | mock 生命周期覆盖 |
-| `bool_array` | `aclCreateBoolArray` / `aclDestroyBoolArray` | mock 生命周期覆盖 |
+| `float_array`, `bool_array` | matching create/destroy API | mock lifecycle |
 
-## 明确不支持
+## Preflight Blocked
 
-| ABI kind | 拒绝原因 |
+These declarations are parser-preserved and rejected before native symbol resolution. They remain blocked until a descriptor and memory-lifecycle contract is proven for the target CANN ABI.
+
+| Declaration | Current rejection boundary |
 | --- | --- |
-| `tensor_list` | 需要确认 CANN 版本对应的 tensor-list 创建、析构与 keepalive 所有权契约 |
-| `optional_tensor` | 需要确认空 tensor 指针在 GetWorkspaceSize 和执行符号中的 ABI 语义 |
-| `optional_scalar` | 需要确认空 scalar 指针在 GetWorkspaceSize 和执行符号中的 ABI 语义 |
+| Dynamic output | dynamic allocation/descriptor lifecycle |
+| Non-`ND` format | format-specific tensor descriptor contract |
+| Non-zero storage offset or explicit strides | storage, offset, stride, and keepalive contract |
 
-新增 ABI 的完成标准：更新 `ACLNN_CAPABILITY_MATRIX`、实现资源创建与逆序析构、增加 mock 生命周期测试，并在目标 CANN/NPU 组合上新增独立 E2E gate。
+## Future ABI
+
+These ABI forms have no established ownership/null contract. They are explicitly rejected and must not be implemented by forwarding Python objects or guessed null pointers.
+
+| ABI kind | Missing proof |
+| --- | --- |
+| `tensor_list` | CANN-version-specific list creation, destruction, and tensor keepalive ownership |
+| `optional_tensor_list` | null list semantics in both workspace and execute symbols |
+| `optional_tensor` | null tensor semantics in both workspace and execute symbols |
+| `optional_scalar` | null scalar semantics in both workspace and execute symbols |
+
+Completion for a future ABI requires: capability-matrix update, concrete resource create/destroy in reverse order, mock lifecycle regression, and a target CANN/NPU E2E gate. Parser preservation or preflight rejection alone is not runtime support.

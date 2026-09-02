@@ -1,0 +1,13 @@
+cases:
+  - id: 921
+    operator: {name: torch.layer_norm}
+    invocation: {api: torch.layer_norm, api_type: function, executor: torch, binding: {mode: keyword, names: [input, normalized_shape, weight, bias, eps]}}
+    oracle: {comparison: allclose, reference_executor: torch, tolerance: {atol: 1.0e-5, rtol: 1.0e-5}}
+    generator: default
+    metadata: {tags: [hardware, layer_norm, rank4, affine, legal]}
+    parameters:
+      - {name: input, kind: tensor, dtypes: [fp32], shape: {dims: [2, 3, 4, 5]}}
+      - {name: normalized_shape, kind: attribute_tuple, dtypes: [int64], values: [4, 5]}
+      - {name: weight, kind: tensor, dtypes: [fp32], shape: {dims: [4, 5]}}
+      - {name: bias, kind: tensor, dtypes: [fp32], shape: {dims: [4, 5]}}
+      - {name: eps, kind: attribute, dtypes: [fp32], values: 1.0e-5}

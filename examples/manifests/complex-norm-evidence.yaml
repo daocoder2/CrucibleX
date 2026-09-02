@@ -1,0 +1,39 @@
+version: 1
+kind: manifest
+task:
+  name: complex-norm-evidence
+  description: legal group_norm and instance_norm generator evidence
+lanes:
+  - name: cpu-legal-contract
+    kind: contract
+    backends: [cpu]
+    cases:
+      - include: ../cases/torch.group-norm.generated.yaml
+      - include: ../cases/torch.instance-norm.generated.yaml
+      - include: ../cases/torch.layer-norm.rank4.hardware.yaml
+      - include: ../cases/torch.instance-norm.running-stats.hardware.yaml
+  - name: gpu-legal-evidence
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: ../cases/torch.group-norm.generated.yaml
+      - include: ../cases/torch.instance-norm.generated.yaml
+      - include: ../cases/torch.layer-norm.rank4.hardware.yaml
+      - include: ../cases/torch.instance-norm.running-stats.hardware.yaml
+  - name: npu-legal-evidence
+    kind: hardware
+    backends: [npu]
+    cases:
+      - include: ../cases/torch.group-norm.generated.yaml
+      - include: ../cases/torch.instance-norm.generated.yaml
+      - include: ../cases/torch.layer-norm.rank4.hardware.yaml
+      - include: ../cases/torch.instance-norm.running-stats.hardware.yaml
+runtime:
+  allow_generated_cases: true
+  allow_invalid_cases: false
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+reporting:
+  output_dir: .artifacts/complex-norm-evidence
+  emit_case_index: true
+  emit_lane_index: true

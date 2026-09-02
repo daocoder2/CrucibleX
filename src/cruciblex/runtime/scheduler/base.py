@@ -17,12 +17,18 @@ def scheduler_result(
     metadata: dict[str, Any] | None = None,
 ) -> ExecutionResult:
     failure_kind = "skip" if status == ResultStatus.SKIPPED else "timeout" if status == ResultStatus.TIMEOUT else "error" if status == ResultStatus.ERROR else "scheduler"
+    manifest_metrics = {
+        key: plan.case.metadata[key]
+        for key in ("manifest_lane", "manifest_lane_kind", "manifest_case_include")
+        if key in plan.case.metadata
+    }
     metrics = {
         "stage": "scheduler",
         "reason": reason,
         "failure_kind": failure_kind,
         "failure_stage": reason,
         "failure_message": detail or reason,
+        **manifest_metrics,
         **(metadata or {}),
     }
     return ExecutionResult(

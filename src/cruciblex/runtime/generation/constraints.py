@@ -170,6 +170,8 @@ class ShapeRelationshipsConstraint(ConstraintPlugin):
             source_name = relation.get("source")
             source = parameters.get(str(source_name))
             source_dims = _shape_dims(source.shape if source else None)
+            if source_dims is None and source and source.kind in {ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE} and isinstance(source.values, (list, tuple)) and all(isinstance(value, int) for value in source.values):
+                source_dims = list(source.values)
             target_dims = _shape_dims(parameter.shape)
             kind = relation.get("kind")
             if kind == "attention_mask" and source_dims:
@@ -177,7 +179,10 @@ class ShapeRelationshipsConstraint(ConstraintPlugin):
                 key_dims = _shape_dims(key.shape if key else None)
                 resolved = [source_dims[0], source_dims[1], source_dims[2], key_dims[2]] if key_dims and len(source_dims) == 4 and len(key_dims) == 4 else target_dims
             elif kind in {"last_dimension_as", "last_k_dimensions_as"} and source_dims and parameter.kind in {ParameterKind.TENSOR, ParameterKind.ATTRIBUTE, ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE}:
-                width = len(parameter.shape.dims) if kind == "last_k_dimensions_as" and relation.get("k_from_target_rank") and parameter.shape else int(relation.get("k", 1)) if kind == "last_k_dimensions_as" else 1
+                if kind == "last_k_dimensions_as" and relation.get("k_from_target_rank"):
+                    width = len(parameter.values) if parameter.kind in {ParameterKind.ATTRIBUTE_LIST, ParameterKind.ATTRIBUTE_TUPLE} and isinstance(parameter.values, (list, tuple)) else len(parameter.shape.dims) if parameter.shape else 1
+                else:
+                    width = int(relation.get("k", 1)) if kind == "last_k_dimensions_as" else 1
                 resolved = source_dims[-max(1, width):]
             elif kind == "conv_weight_channels" and source_dims and target_dims:
                 groups = parameters.get(str(relation.get("groups", "groups")))

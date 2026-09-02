@@ -25,9 +25,14 @@ def case_dimensions(case: CaseSpec) -> dict[str, set[str]]:
     tags = metadata.get("tags", [])
     if isinstance(tags, str):
         tags = [tags]
+    declared_backends = metadata.get("manifest_backends", [])
+    if not isinstance(declared_backends, list):
+        declared_backends = []
+    backends = {str(case.invocation.executor or invocation_metadata.get("backend", ""))}
+    backends.update(str(backend) for backend in declared_backends)
     return {
         "operator": {case.operator.name, case.invocation.api},
-        "backend": {str(case.invocation.executor or invocation_metadata.get("backend", ""))},
+        "backend": backends,
         "task": {str(invocation_metadata.get("task", metadata.get("task", "")))},
         "dtype": dtypes,
         "tag": {str(tag) for tag in tags},

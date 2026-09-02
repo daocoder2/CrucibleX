@@ -1,0 +1,37 @@
+version: 1
+kind: manifest
+task:
+  name: complex-operator-evidence
+  description: legal-only GPU/NPU evidence entrypoint for conv, layer norm, and attention variants
+lanes:
+  - name: gpu-complex-legal
+    kind: hardware
+    backends: [gpu]
+    cases:
+      - include: ../cases/torch.conv2d.generated.yaml
+      - include: ../cases/torch.conv2d.grouped.hardware.yaml
+      - include: ../cases/torch.layer-norm.generated.yaml
+      - include: ../cases/torch.attention.generated.yaml
+      - include: ../cases/torch.attention.causal.hardware.yaml
+      - include: ../cases/torch.attention.broadcast-mask.hardware.yaml
+      - include: ../cases/torch.attention.gqa.capability.yaml
+  - name: npu-complex-legal
+    kind: hardware
+    backends: [npu]
+    cases:
+      - include: ../cases/torch.conv2d.generated.yaml
+      - include: ../cases/torch.conv2d.grouped.hardware.yaml
+      - include: ../cases/torch.layer-norm.generated.yaml
+      - include: ../cases/torch.attention.generated.yaml
+      - include: ../cases/torch.attention.causal.hardware.yaml
+      - include: ../cases/torch.attention.broadcast-mask.hardware.yaml
+      - include: ../cases/torch.attention.gqa.capability.yaml
+runtime:
+  allow_generated_cases: true
+  allow_invalid_cases: false
+  require_real_evidence: true
+  require_backend_dtype_source: device_tensor
+reporting:
+  output_dir: .artifacts/complex-operator-evidence
+  emit_case_index: true
+  emit_lane_index: true

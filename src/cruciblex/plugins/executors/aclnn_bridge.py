@@ -8,9 +8,18 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from cruciblex.domain.manifest import HARDWARE_EVIDENCE_ARCHIVE_FILES
 from cruciblex.runtime.executors import ExecutionNotSupportedError, ExecutionRequest
 
 ACL_FORMAT_ND = 2
+
+
+class AclnnCapabilityError(ExecutionNotSupportedError):
+    def __init__(self, decision: dict[str, str], decisions: list[dict[str, str]] | None = None) -> None:
+        self.capability_decision = decision
+        self.capability_decisions = decisions or [decision]
+        super().__init__(decision["reason"])
+
 
 ACLNN_CAPABILITY_MATRIX = {
     "tensor": {"status": "supported", "lifecycle": "aclCreateTensor/aclDestroyTensor"},
@@ -20,10 +29,57 @@ ACLNN_CAPABILITY_MATRIX = {
     "int_array": {"status": "supported", "lifecycle": "aclCreateIntArray/aclDestroyIntArray"},
     "float_array": {"status": "supported", "lifecycle": "aclCreateFloatArray/aclDestroyFloatArray"},
     "bool_array": {"status": "supported", "lifecycle": "aclCreateBoolArray/aclDestroyBoolArray"},
-    "tensor_list": {"status": "unsupported", "reason": "requires ACLNN tensor-list ownership contract"},
-    "optional_tensor": {"status": "unsupported", "reason": "requires null tensor ABI contract"},
-    "optional_scalar": {"status": "unsupported", "reason": "requires null scalar ABI contract"},
+    "multi_output_static": {"status": "supported", "lifecycle": "one aclCreateTensor/aclDestroyTensor per output"},
+    "tensor_list": {"status": "future_abi", "reason": "requires ACLNN tensor-list ownership contract"},
+    "optional_tensor_list": {"status": "future_abi", "reason": "requires null tensor-list ABI contract"},
+    "optional_tensor": {"status": "future_abi", "reason": "requires null tensor ABI contract"},
+    "optional_scalar": {"status": "future_abi", "reason": "requires null scalar ABI contract"},
+    "dynamic_output": {"status": "preflight_blocked", "reason": "requires dynamic output descriptor and ownership contract"},
+    "non_nd_format": {"status": "preflight_blocked", "reason": "requires format-specific tensor descriptor contract"},
+    "non_contiguous_storage": {"status": "preflight_blocked", "reason": "requires storage offset and stride descriptor contract"},
 }
+ACLNN_CAPABILITY_EVIDENCE = {
+    "tensor": {"lifecycle": "aclCreateTensor/aclDestroyTensor", "evidence": ("npu_e2e",), "manifest": "examples/manifests/aclnn-supported-evidence.yaml", "case_ids": (110, 111, 204, 205, 206), "archive_files": HARDWARE_EVIDENCE_ARCHIVE_FILES},
+    "scalar": {"lifecycle": "aclCreateScalar/aclDestroyScalar", "evidence": ("mock_lifecycle",)},
+    "native_int": {"lifecycle": "caller_owned", "evidence": ("npu_e2e",), "manifest": "examples/manifests/aclnn-supported-evidence.yaml", "case_ids": (204, 205, 206), "archive_files": HARDWARE_EVIDENCE_ARCHIVE_FILES},
+    "native_bool": {"lifecycle": "caller_owned", "evidence": ("npu_e2e",), "manifest": "examples/manifests/aclnn-supported-evidence.yaml", "case_ids": (204, 205, 206), "archive_files": HARDWARE_EVIDENCE_ARCHIVE_FILES},
+    "int_array": {"lifecycle": "aclCreateIntArray/aclDestroyIntArray", "evidence": ("npu_e2e",), "manifest": "examples/manifests/aclnn-supported-evidence.yaml", "case_ids": (206,), "archive_files": HARDWARE_EVIDENCE_ARCHIVE_FILES},
+    "float_array": {"lifecycle": "aclCreateFloatArray/aclDestroyFloatArray", "evidence": ("mock_lifecycle",)},
+    "bool_array": {"lifecycle": "aclCreateBoolArray/aclDestroyBoolArray", "evidence": ("mock_lifecycle",)},
+    "multi_output_static": {"lifecycle": "one aclCreateTensor/aclDestroyTensor per output", "evidence": ("npu_e2e",), "manifest": "examples/manifests/aclnn-supported-evidence.yaml", "case_ids": (204, 205), "archive_files": HARDWARE_EVIDENCE_ARCHIVE_FILES},
+}
+
+
+def validate_aclnn_capability_promotions(
+    capabilities: dict[str, dict[str, str]] = ACLNN_CAPABILITY_MATRIX,
+    evidence: dict[str, dict[str, object]] = ACLNN_CAPABILITY_EVIDENCE,
+) -> None:
+    """Require lifecycle and runtime/mock evidence before a capability is supported."""
+    for name, capability in capabilities.items():
+        if capability.get("status") != "supported":
+            continue
+        declaration = evidence.get(name, {})
+        lifecycle = declaration.get("lifecycle")
+        kinds = declaration.get("evidence")
+        if not isinstance(lifecycle, str) or not lifecycle:
+            raise ValueError(f"ACLNN supported capability {name} is missing lifecycle evidence")
+        if not isinstance(kinds, tuple) or not kinds or not all(kind in {"mock_lifecycle", "npu_e2e"} for kind in kinds):
+            raise ValueError(f"ACLNN supported capability {name} is missing mock_lifecycle or npu_e2e evidence")
+        if lifecycle != capability.get("lifecycle"):
+            raise ValueError(f"ACLNN supported capability {name} has mismatched lifecycle evidence")
+        if "npu_e2e" in kinds:
+            manifest = declaration.get("manifest")
+            case_ids = declaration.get("case_ids")
+            if not isinstance(manifest, str) or not manifest:
+                raise ValueError(f"ACLNN supported capability {name} is missing NPU evidence manifest")
+            if not isinstance(case_ids, tuple) or not case_ids or not all(isinstance(case_id, int) for case_id in case_ids):
+                raise ValueError(f"ACLNN supported capability {name} is missing NPU evidence case IDs")
+            if declaration.get("archive_files") != HARDWARE_EVIDENCE_ARCHIVE_FILES:
+                raise ValueError(f"ACLNN supported capability {name} is missing the Manifest v1 evidence archive contract")
+
+
+validate_aclnn_capability_promotions()
+
 _TORCH_DTYPE_TO_ACL = {
     "torch.float32": 0,
     "torch.float16": 1,
@@ -77,6 +133,61 @@ class AclnnArg:
 
 
 AclnnTensorArg = AclnnArg
+
+
+def aclnn_capability_decision(arg: AclnnArg) -> dict[str, str]:
+    """Return the stable preflight classification for one ABI argument."""
+    capability = ACLNN_CAPABILITY_MATRIX.get(arg.kind)
+    if capability is None:
+        return {
+            "capability": arg.kind,
+            "status": "unsupported",
+            "reason": f"unsupported ACLNN argument kind: {arg.kind}",
+        }
+    if arg.kind == "tensor":
+        if arg.format != "ND":
+            return {
+                "capability": "non_nd_format",
+                "status": "preflight_blocked",
+                "reason": "ACLNN bridge supports only ND tensor format",
+            }
+        if arg.storage_offset != 0:
+            return {
+                "capability": "non_contiguous_storage",
+                "status": "preflight_blocked",
+                "reason": "ACLNN bridge does not support non-zero tensor storage_offset",
+            }
+        if arg.strides is not None:
+            return {
+                "capability": "non_contiguous_storage",
+                "status": "preflight_blocked",
+                "reason": "ACLNN bridge does not preserve declared tensor strides",
+            }
+    if arg.role == "output" and arg.dynamic:
+        return {
+            "capability": "dynamic_output",
+            "status": "preflight_blocked",
+            "reason": "ACLNN bridge does not support dynamic output allocation",
+        }
+    status = str(capability["status"])
+    return {
+        "capability": arg.kind,
+        "status": status,
+        "reason": str(capability.get("reason", "")),
+    }
+
+
+def aclnn_spec_capability_decisions(spec: AclnnOpSpec) -> list[dict[str, str]]:
+    """Return argument and operation-level ACLNN capability decisions."""
+    decisions = [aclnn_capability_decision(arg) for arg in spec.call_args]
+    if len(spec.outputs) > 1:
+        static_outputs = all(output.kind == "tensor" and not output.dynamic for output in spec.outputs)
+        decisions.append({
+            "capability": "multi_output_static" if static_outputs else "dynamic_output",
+            "status": "supported" if static_outputs else "preflight_blocked",
+            "reason": "" if static_outputs else "ACLNN bridge does not support dynamic output allocation",
+        })
+    return decisions
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,6 +325,7 @@ class AclnnRuntime:
         self.resolver = resolver or AclnnLibraryResolver()
 
     def run(self, spec: AclnnOpSpec, inputs: list[object]) -> object:
+        decisions = aclnn_spec_capability_decisions(spec)
         self.validate_capabilities(spec)
         if not spec.inputs or not spec.outputs:
             raise ExecutionNotSupportedError("ACLNN bridge currently requires tensor inputs and tensor outputs")
@@ -248,6 +360,7 @@ class AclnnRuntime:
                 "backend_output_dtype": [str(output.dtype) for output in device_outputs],
                 "backend_output_device": [str(output.device) for output in device_outputs],
                 "backend_dtype_source": "device_tensor",
+                "aclnn_capability_decisions": decisions,
             }
             outputs = [output.detach().cpu().numpy() for output in device_outputs]
             return outputs[0] if len(outputs) == 1 else outputs
@@ -261,26 +374,16 @@ class AclnnRuntime:
                 acl.rt.free(workspace)
 
     def validate_capabilities(self, spec: AclnnOpSpec) -> None:
-        for arg in spec.call_args:
-            capability = ACLNN_CAPABILITY_MATRIX.get(arg.kind)
-            if capability is None:
-                raise ExecutionNotSupportedError(f"unsupported ACLNN argument kind: {arg.kind}")
-            if capability["status"] != "supported":
-                raise ExecutionNotSupportedError(
-                    f"unsupported ACLNN argument kind: {arg.kind}; {capability.get('reason', 'no capability')}"
-                )
-            if arg.kind == "tensor":
-                if arg.format != "ND":
-                    raise ExecutionNotSupportedError("ACLNN bridge supports only ND tensor format")
-                if arg.storage_offset != 0:
-                    raise ExecutionNotSupportedError("ACLNN bridge does not support non-zero tensor storage_offset")
-                if arg.strides is not None:
-                    raise ExecutionNotSupportedError("ACLNN bridge does not preserve declared tensor strides")
-        for output in spec.outputs:
-            if output.kind != "tensor":
-                raise ExecutionNotSupportedError(f"unsupported ACLNN output kind: {output.kind}")
-            if output.dynamic:
-                raise ExecutionNotSupportedError("ACLNN bridge does not support dynamic output allocation")
+        decisions = aclnn_spec_capability_decisions(spec)
+        args = (*spec.call_args,)
+        for index, decision in enumerate(decisions):
+            if decision["status"] == "supported":
+                continue
+            arg = args[index] if index < len(args) else None
+            if arg is not None and decision["capability"] == arg.kind and decision["reason"]:
+                decision = {**decision, "reason": f"unsupported ACLNN argument kind: {arg.kind}; {decision['reason']}"}
+                decisions[index] = decision
+            raise AclnnCapabilityError(decision, decisions)
 
     def _torch_npu(self):
         try:
@@ -468,6 +571,9 @@ class AclnnFunctionAdapter:
 
     def execute(self, request: ExecutionRequest) -> object:
         spec = op_spec_from_case(request.case)
+        validate = getattr(self.runtime, "validate_capabilities", None)
+        if callable(validate):
+            validate(spec)
         binding = request.case.invocation.metadata.get("binding", {})
         omitted = binding.get("omit", []) if isinstance(binding, dict) else []
         omitted_names = {str(item) for item in omitted if isinstance(item, str)}
